@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "HgVS_2026": {
+      "commandName": "VsixDebugger"
+    }
+  }
+}
