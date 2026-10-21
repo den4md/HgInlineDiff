@@ -24,6 +24,7 @@ internal static class SmokeTests
             _visualStudio = args[0];
             _hg = args[1];
             AppDomain.CurrentDomain.AssemblyResolve += ResolveVisualStudioAssembly;
+            InitializeShellThread();
             _checks += MarginUiTests.Run();
             RunAsync(args[2]).GetAwaiter().GetResult();
             Console.WriteLine("Passed " + _checks + " checks with " + Path.GetFileName(_visualStudio) + " editor assemblies.");
@@ -34,6 +35,14 @@ internal static class SmokeTests
             Console.Error.WriteLine(error);
             return 1;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void InitializeShellThread()
+    {
+        // Resolve VS assemblies before the JIT loads this method; the test STA substitutes for devenv's UI thread.
+        typeof(Microsoft.VisualStudio.Shell.ThreadHelper).GetMethod("SetUIThread",
+            BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!.Invoke(null, null);
     }
 
     private static Assembly? ResolveVisualStudioAssembly(object? sender, ResolveEventArgs args)

@@ -13,6 +13,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Differencing;
@@ -34,7 +35,8 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
     private ITextSnapshot? _snapshot;
     private List<DiffHunk> _hunks = new List<DiffHunk>();
     private readonly Dictionary<DiffHunk, Shape> _markers = new Dictionary<DiffHunk, Shape>();
-    private Popup? _popup;
+    private ParentTextPopup? _popup;
+    private readonly MercurialChangeSet _changes;
     private string _loadedPath = string.Empty;
     private bool _disposed;
     private int _generation;
@@ -42,12 +44,14 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
     public MercurialMargin(IWpfTextView view, ITextDocument document, MercurialMarginProvider provider,
         ITextDifferencingService differencing, IEditorFormatMap formats, IClassificationFormatMap classification)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         _view = view;
         _document = document;
         _provider = provider;
         _updates = new DiffUpdates(differencing);
         _formats = formats;
         _classification = classification;
+        _changes = MercurialChangeSet.For(view);
         Width = 10;
         Visibility = Visibility.Collapsed;
         ClipToBounds = true;
@@ -64,6 +68,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _view.Closed += OnClosed;
         _document.FileActionOccurred += OnFileAction;
         _formats.FormatMappingChanged += OnFormatsChanged;
+        InputManager.Current.PreProcessInput += OnCapturedMouseInput;
         _ = ReloadAsync();
     }
 
@@ -75,6 +80,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
 
     private async Task ReloadAsync()
     {
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
         if (_disposed)
             return;
         _loading?.Cancel();
@@ -85,6 +91,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _updates.Cancel();
         _baseline = null;
         _hunks.Clear();
+        _changes.Publish(null, _hunks);
         ClosePopup();
         ClearMarkers();
         Opacity = 1;
@@ -98,6 +105,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         {
             // Filesystem checks and Process.Start can block too; keep the entire load off the UI thread.
             var root = await Task.Run(() => MercurialRepository.FindRoot(filePath), token);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
             if (_disposed || generation != _generation || token.IsCancellationRequested)
                 return;
             Visibility = root == null ? Visibility.Collapsed : Visibility.Visible;
@@ -105,6 +113,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
                 : await Task.Run(() => MercurialRepository.LoadAsync(filePath, encoding, token), token);
             if (_disposed || generation != _generation || token.IsCancellationRequested)
                 return;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
             _baseline = baseline;
             ToolTip = baseline == null
                 ? "Mercurial: untracked, ignored, or binary file. Right-click to refresh."
@@ -124,18 +133,18 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
 
     private void ScheduleComparison()
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         _updates.Cancel();
         ClosePopup();
         if (_disposed || _baseline == null)
             return;
-        // Hide stale coordinates without invalidating measurement or rebuilding the visual tree per key.
-        Opacity = 0;
-        IsHitTestVisible = false;
+        // Keep the last completed markers visible until the replacement is ready.
         _ = CompareAsync();
     }
 
     private async Task CompareAsync()
     {
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
         if (_disposed || _baseline == null)
             return;
         var generation = _generation;
@@ -145,10 +154,12 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         try
         {
             var hunks = await _updates.CalculateAsync(baseline.Text, snapshot);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (hunks == null || _disposed || generation != _generation || snapshot != _view.TextSnapshot)
                 return;
             _snapshot = snapshot;
             _hunks = hunks;
+            _changes.Publish(snapshot, hunks);
             ClearMarkers();
             RenderMarkers();
             Opacity = 1;
@@ -159,6 +170,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             if (!_disposed && generation == _generation && snapshot == _view.TextSnapshot)
             {
                 _hunks.Clear();
+                _changes.Publish(null, _hunks);
                 ClearMarkers();
                 Opacity = 1;
                 IsHitTestVisible = true;
@@ -212,23 +224,27 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             marker.ToolTip = "Mercurial " + kind + " lines. Click to view the parent text.";
             AutomationProperties.SetName(marker, "Mercurial " + kind + " lines");
             // LeftSelectionMargin captures the mouse on button-down unless we handle it first.
-            marker.PreviewMouseLeftButtonDown += (sender, args) => args.Handled = true;
-            marker.PreviewMouseLeftButtonUp += (sender, args) =>
+            marker.AddHandler(PreviewMouseLeftButtonDownEvent,
+                new MouseButtonEventHandler((sender, args) => args.Handled = true), true);
+            marker.AddHandler(PreviewMouseLeftButtonUpEvent, new MouseButtonEventHandler((sender, args) =>
             {
+                ThreadHelper.ThrowIfNotOnUIThread();
                 ShowPopup(hunk, marker);
                 args.Handled = true;
-            };
+            }), true);
             marker.ContextMenu = ContextMenu;
-            marker.PreviewMouseRightButtonDown += (sender, args) => args.Handled = true;
-            marker.PreviewMouseRightButtonUp += (sender, args) =>
+            marker.AddHandler(PreviewMouseRightButtonDownEvent,
+                new MouseButtonEventHandler((sender, args) => args.Handled = true), true);
+            marker.AddHandler(PreviewMouseRightButtonUpEvent, new MouseButtonEventHandler((sender, args) =>
             {
                 args.Handled = true;
                 ContextMenu.PlacementTarget = marker;
                 ContextMenu.Placement = PlacementMode.MousePoint;
                 ContextMenu.IsOpen = true;
-            };
+            }), true);
             marker.KeyDown += (sender, args) =>
             {
+                ThreadHelper.ThrowIfNotOnUIThread();
                 if (args.Key == Key.Enter || args.Key == Key.Space)
                 {
                     ShowPopup(hunk, marker);
@@ -272,82 +288,62 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
 
     private void ShowPopup(DiffHunk hunk, FrameworkElement marker)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         ClosePopup();
-        var properties = _classification.DefaultTextProperties;
-        var text = new TextBox
+        try
         {
-            IsReadOnly = true,
-            Text = hunk.IsAddition ? "No text in the parent revision. These lines were added." : hunk.OriginalText,
-            FontFamily = properties.TypefaceEmpty ? new FontFamily("Consolas") : properties.Typeface.FontFamily,
-            FontSize = properties.FontRenderingEmSizeEmpty ? 12 : properties.FontRenderingEmSize,
-            Background = _view.Background,
-            Foreground = properties.ForegroundBrushEmpty ? SystemColors.ControlTextBrush : properties.ForegroundBrush,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(8),
-            MaxWidth = Math.Max(240, _view.ViewportWidth * 0.8),
-            MaxHeight = Math.Max(120, _view.ViewportHeight * 0.6),
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        };
-        AutomationProperties.SetName(text, "Mercurial parent revision text");
-        var panel = new StackPanel();
-        panel.Children.Add(new TextBlock
+            _popup = new ParentTextPopup(_view, _provider, marker,
+                hunk.IsAddition ? "No text in the parent revision. These lines were added." : hunk.OriginalText,
+                _baseline?.Revision ?? string.Empty, _classification);
+        }
+        catch (Exception error)
         {
-            Text = "Parent: " + _baseline?.Revision + "  (Esc to close)",
-            Padding = new Thickness(8, 4, 8, 4),
-            Foreground = text.Foreground,
-        });
-        panel.Children.Add(text);
-        _popup = new Popup
-        {
-            PlacementTarget = marker,
-            Placement = PlacementMode.Right,
-            StaysOpen = false,
-            Child = new Border
-            {
-                Background = text.Background,
-                BorderBrush = text.Foreground,
-                BorderThickness = new Thickness(1),
-                Child = panel,
-            },
-        };
-        // Popup content lives in another visual tree: keys do not route through the Popup object.
-        panel.AddHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnPopupKeyDown), true);
-        _view.VisualElement.AddHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnPopupKeyDown), true);
+            ToolTip = "Mercurial preview: " + error.Message;
+            Trace.TraceError("HgVS preview: {0}", error);
+            return;
+        }
         var openedPopup = _popup;
         openedPopup.Closed += (sender, args) =>
         {
             if (ReferenceEquals(_popup, openedPopup))
-                ClosePopup();
+                _popup = null;
         };
-        openedPopup.Opened += (sender, args) => text.Focus();
-        _popup.IsOpen = true;
-        text.Focus();
-    }
-
-    private void OnPopupKeyDown(object sender, KeyEventArgs args)
-    {
-        if (args.Key != Key.Escape || _popup == null)
-            return;
-        args.Handled = true;
-        ClosePopup();
-        _view.VisualElement.Focus();
     }
 
     private void ClosePopup()
     {
-        if (_popup != null)
-        {
-            var popup = _popup;
-            _popup = null;
-            _view.VisualElement.RemoveHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnPopupKeyDown));
-            popup.IsOpen = false;
-        }
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var popup = _popup;
+        _popup = null;
+        popup?.Dispose();
     }
 
-    private void OnTextChanged(object? sender, TextContentChangedEventArgs args) => ScheduleComparison();
+    private void OnCapturedMouseInput(object sender, PreProcessInputEventArgs args)
+    {
+        if (_disposed || !IsVisible || Mouse.Captured == null
+            || !(args.StagingItem.Input is MouseButtonEventArgs mouse)
+            || mouse.ButtonState != MouseButtonState.Pressed
+            || Window.GetWindow(this)?.IsActive != true)
+            return;
+        if (Mouse.Captured is Visual captured && _view.VisualElement.IsAncestorOf(captured))
+            return;
+        var point = mouse.GetPosition(this);
+        if (!new Rect(RenderSize).Contains(point) || !(InputHitTest(point) is Shape marker)
+            || !_markers.ContainsValue(marker))
+            return;
+        // Another VS popup owns the press. Release its capture so the release reaches our marker.
+        Mouse.Capture(null);
+        mouse.Handled = true;
+        args.Cancel();
+    }
+    private void OnTextChanged(object? sender, TextContentChangedEventArgs args)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        ScheduleComparison();
+    }
     private void OnLayoutChanged(object? sender, TextViewLayoutChangedEventArgs args)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         // Focusing a popup may trigger layout without scrolling. Keep its placement target alive.
         if (_popup?.IsOpen == true && _snapshot == _view.TextSnapshot
             && args.OldViewState.ViewportTop == args.NewViewState.ViewportTop
@@ -363,16 +359,26 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         foreach (var marker in _markers)
             marker.Value.Fill = GetBrush(marker.Key.IsDeletion ? "HgVS.Deletion" : marker.Key.IsAddition ? "HgVS.Addition" : "HgVS.Modification");
     }
-    private void OnRefreshRequested(object? sender, EventArgs args) => _ = ReloadAsync();
+    private void OnRefreshRequested(object? sender, EventArgs args)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        _ = ReloadAsync();
+    }
     private void OnFileAction(object? sender, TextDocumentFileActionEventArgs args)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         if (!string.Equals(_loadedPath, _document.FilePath, StringComparison.OrdinalIgnoreCase))
             _ = ReloadAsync();
     }
-    private void OnClosed(object? sender, EventArgs args) => Dispose();
+    private void OnClosed(object? sender, EventArgs args)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        Dispose();
+    }
 
     public void Dispose()
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         if (_disposed)
             return;
         _disposed = true;
@@ -386,6 +392,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _view.Closed -= OnClosed;
         _document.FileActionOccurred -= OnFileAction;
         _formats.FormatMappingChanged -= OnFormatsChanged;
+        InputManager.Current.PreProcessInput -= OnCapturedMouseInput;
         ClosePopup();
         ClearMarkers();
     }

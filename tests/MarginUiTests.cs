@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using HgVS_2026;
 using Microsoft.VisualStudio.Text;
@@ -19,6 +20,9 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Differencing;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Formatting;
+using Microsoft.VisualStudio.Utilities;
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.OLE.Interop;
 
 internal static class MarginUiTests
 {
@@ -36,7 +40,13 @@ internal static class MarginUiTests
             "GetLineNumberFromPosition" => Math.Min(lineCount - 1, (int)call.Args[0] / 30),
             _ => null,
         });
-        var buffer = InterfaceProxy<ITextBuffer>.Create(call => call.MethodName == "get_CurrentSnapshot" ? snapshot : null);
+        var contentType = InterfaceProxy<IContentType>.Create(call => call.MethodName == "get_TypeName" ? "CSharp" : null);
+        var buffer = InterfaceProxy<ITextBuffer>.Create(call => call.MethodName switch
+        {
+            "get_CurrentSnapshot" => snapshot,
+            "get_ContentType" => contentType,
+            _ => null,
+        });
         var lineVisible = true;
         var firstVisible = 0;
         var lines = InterfaceProxy<IWpfTextViewLineCollection>.Create(call => call.MethodName switch
@@ -51,6 +61,7 @@ internal static class MarginUiTests
         });
         var viewElement = new Canvas();
         var positionedLines = 0;
+        var properties = new PropertyCollection();
         var view = InterfaceProxy<IWpfTextView>.Create(call =>
         {
             if (call.MethodName == "GetTextViewLineContainingBufferPosition")
@@ -61,6 +72,7 @@ internal static class MarginUiTests
             return call.MethodName switch
             {
             "get_TextBuffer" => buffer,
+            "get_Properties" => properties,
             "get_TextSnapshot" => snapshot,
             "get_TextViewLines" => lines,
             "get_ViewportTop" => firstVisible * 20.0,
@@ -68,8 +80,10 @@ internal static class MarginUiTests
             "get_ViewportWidth" => 800.0,
             "get_ViewportHeight" => 100.0,
             "get_LineHeight" => 20.0,
+            "get_ZoomLevel" => 100.0,
             "get_IsClosed" => false,
             "get_VisualElement" => viewElement,
+            "get_HasAggregateFocus" => true,
             _ => null,
             };
         });
@@ -86,7 +100,9 @@ internal static class MarginUiTests
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
         try
         {
-            using (var margin = new MercurialMargin(view, document, new MercurialMarginProvider(),
+            var provider = new MercurialMarginProvider();
+            var popupServices = new PopupTestServices(provider);
+            using (var margin = new MercurialMargin(view, document, provider,
                 InterfaceProxy<ITextDifferencingService>.Create(call => null), formats,
                 InterfaceProxy<IClassificationFormatMap>.Create(call => call.MethodName == "get_DefaultTextProperties"
                     ? TextFormattingRunProperties.CreateTextFormattingRunProperties() : null)))
@@ -144,15 +160,33 @@ internal static class MarginUiTests
                 var leftUp = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                 {
                     RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent,
+                    Handled = true,
                 };
                 marker.RaiseEvent(leftUp);
                 var popup = (Popup)typeof(MercurialMargin).GetField("_popup", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(margin)!;
-                var text = (TextBox)((StackPanel)((Border)popup.Child).Child).Children[1];
+                var text = popupServices.Text;
                 Require(leftUp.Handled && popup.IsOpen && text.Text == "parent\n", "left release opens the original-text popup");
+                Require(popupServices.ReadOnly && ReferenceEquals(popupServices.ContentType, contentType),
+                    "native preview is read-only and uses the source file's content type for highlighting");
+                Require(popup.StaysOpen, "preview must not capture clicks intended for other VS UI");
+                var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
+                var copyStatus = new[] { new OLECMD { cmdID = (uint)VSConstants.VSStd97CmdID.Copy } };
+                Require(popupServices.Target!.QueryStatus(ref commandGroup, 1, copyStatus, IntPtr.Zero) == VSConstants.S_OK
+                    && (copyStatus[0].cmdf & (uint)OLECMDF.OLECMDF_ENABLED) != 0, "VS sees preview Copy as enabled");
+                Require(popupServices.Target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Copy,
+                    0, IntPtr.Zero, IntPtr.Zero) == VSConstants.S_OK && popupServices.Copies == 1,
+                    "shell Copy command targets the preview selection");
+                popupServices.PreviewFocused = false;
+                Require(popupServices.Target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Copy,
+                    0, IntPtr.Zero, IntPtr.Zero) != VSConstants.S_OK && popupServices.Copies == 1,
+                    "preview does not intercept Copy when focus moves elsewhere");
+                popupServices.PreviewFocused = true;
                 var escape = new KeyEventArgs(Keyboard.PrimaryDevice, new TestKeySource(), 0, Key.Escape)
                 { RoutedEvent = Keyboard.PreviewKeyDownEvent };
                 text.RaiseEvent(escape);
                 Require(escape.Handled && !popup.IsOpen, "Escape closes popup when its text has focus");
+                Require(popupServices.Unregistrations == 1 && popupServices.HostsClosed == 1,
+                    "closing releases the shell command registration and preview host");
 
                 marker.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                 { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
@@ -161,6 +195,56 @@ internal static class MarginUiTests
                 { RoutedEvent = Keyboard.PreviewKeyDownEvent };
                 viewElement.RaiseEvent(escape);
                 Require(escape.Handled && !popup.IsOpen, "Escape closes popup when focus remains in editor");
+
+                marker.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
+                popup = (Popup)typeof(MercurialMargin).GetField("_popup", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(margin)!;
+                commandGroup = VSConstants.VSStd2K;
+                Require(popupServices.Target!.Exec(ref commandGroup, (uint)VSConstants.VSStd2KCmdID.TYPECHAR,
+                    0, IntPtr.Zero, IntPtr.Zero) == VSConstants.S_OK, "typing in preview must not fall through to source file");
+                Require(popupServices.Target.Exec(ref commandGroup, (uint)VSConstants.VSStd2KCmdID.CANCEL,
+                    0, IntPtr.Zero, IntPtr.Zero) == VSConstants.S_OK && !popup.IsOpen,
+                    "shell Escape closes preview even when WPF never receives the key");
+
+                SetField(margin, "_baseline", new MercurialBaseline("parent\n", "test-parent"));
+                typeof(MercurialMargin).GetMethod("ScheduleComparison", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(margin, null);
+                Require(margin.Opacity == 1 && margin.IsHitTestVisible && margin.Children.Count > 0
+                    && ReferenceEquals(marker, margin.Children[0]), "scheduling an update preserves visible markers");
+
+                var changes = MercurialChangeSet.For(view);
+                var scrollElement = new Canvas();
+                host.Children.Add(scrollElement);
+                var scrollMap = InterfaceProxy<IScrollMap>.Create(_ => null);
+                var scroll = InterfaceProxy<IVerticalScrollBar>.Create(call => call.MethodName switch
+                {
+                    "get_Map" => scrollMap,
+                    "GetYCoordinateOfBufferPosition" => ((SnapshotPoint)call.Args[0]).Position * 90.0 / snapshot.Length + 5,
+                    _ => null,
+                });
+                var overviewFormats = InterfaceProxy<IEditorFormatMap>.Create(call => call.MethodName == "GetProperties"
+                    ? new ResourceDictionary { [EditorFormatDefinition.BackgroundColorId] = (string)call.Args[0] switch
+                        { "HgVS.Addition" => Colors.Lime, "HgVS.Deletion" => Colors.Red, _ => Colors.Blue } } : null);
+                using (var overview = new MercurialOverviewMargin(view, scroll, scrollElement, overviewFormats))
+                {
+                    host.Children.Add(overview);
+                    changes.Publish(snapshot, new[] { new DiffHunk(1, 1, "old", false),
+                        new DiffHunk(2, 1, "", true), new DiffHunk(3, 0, "deleted", false) });
+                    host.Measure(new Size(10, 100));
+                    host.Arrange(new Rect(0, 0, 10, 100));
+                    var bitmap = new RenderTargetBitmap(5, 100, 96, 96, PixelFormats.Pbgra32);
+                    bitmap.Render(overview);
+                    var pixels = new byte[5 * 100 * 4];
+                    bitmap.CopyPixels(pixels, 5 * 4, 0);
+                    Require(pixels[30 * 20 + 12] == 255 && pixels[30 * 20 + 15] == 255,
+                        "scrollbar renders modified lines in blue");
+                    Require(pixels[50 * 20 + 13] == 255 && pixels[50 * 20 + 15] == 255,
+                        "scrollbar renders added lines in green");
+                    Require(pixels[60 * 20 + 14] == 255 && pixels[60 * 20 + 15] == 255,
+                        "scrollbar renders deleted boundaries in red");
+                    Require(positionedLines == 0, "scrollbar rendering never forces text formatting");
+                    changes.Publish(null, Array.Empty<DiffHunk>());
+                    Require(overview.Visibility == Visibility.Collapsed, "empty comparison hides the scrollbar annotation lane");
+                }
 
                 var rightUp = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Right)
                 {
@@ -187,7 +271,17 @@ internal static class MarginUiTests
                 placements = MarkerLayout.Calculate(view, new[] { new DiffHunk(0, lineCount, "old", false) });
                 Require(placements.Count == 1 && placements[0].Top == 0 && placements[0].Height == 100
                     && positionedLines == requestsBefore, "whole-file change uses visible lines without forcing offscreen formatting");
-                return 13;
+                using (var overview = new MercurialOverviewMargin(view, scroll, scrollElement, overviewFormats))
+                {
+                    host.Children.Add(overview);
+                    changes.Publish(snapshot, manyHunks);
+                    host.Measure(new Size(10, 100));
+                    host.Arrange(new Rect(0, 0, 10, 100));
+                    new RenderTargetBitmap(5, 100, 96, 96, PixelFormats.Pbgra32).Render(overview);
+                    Require(VisualTreeHelper.GetDrawing(overview)!.Children.Count <= 100,
+                        "50000 changes produce no more drawing primitives than scrollbar rows");
+                }
+                return 28;
             }
         }
         finally
@@ -252,7 +346,7 @@ internal static class MarginUiTests
         public override IMessage Invoke(IMessage message)
         {
             var call = (IMethodCallMessage)message;
-            try { return new ReturnMessage(_call(call), null, 0, call.LogicalCallContext, call); }
+            try { return new ReturnMessage(_call(call), call.Args, call.ArgCount, call.LogicalCallContext, call); }
             catch (Exception error) { return new ReturnMessage(error, call); }
         }
     }

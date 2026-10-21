@@ -9,11 +9,14 @@ Targets Visual Studio 2022 and 2026 on Windows x64. This is the first working pr
 2. Install the VSIX or press F5 in Visual Studio 2026 to run the Experimental Instance.
 3. Open a tracked text file in a Mercurial working copy.
 4. Edit the file. Green marks additions, blue marks modifications, and red triangles mark deletions.
-5. Click a marker to view the parent revision's text. Select/copy text normally; press Escape to close.
+5. Click a marker to view the parent revision's text with the file's language highlighting.
+   Select/copy with Ctrl+C or the context menu; press Escape to close and return focus to the editor.
 
 Unsaved editor changes update after a 350 ms pause. Snapshot text and differences are calculated in the background;
 each view runs one comparison at a time and discards superseded results. Marker layout uses only the editor's
 existing visible lines, without formatting offscreen lines. The parent text is cached when a file is opened.
+The last completed markers stay visible while their replacement is calculated. The scrollbar shows the same
+green additions, blue modifications, and red deletion marks, using the editor's scroll map in both bar and map mode.
 After an external commit, update, revert, add, or rename, use **Tools > Refresh Mercurial Changes**.
 The same command is available by right-clicking the Mercurial margin.
 It refreshes all open Mercurial margins, without saving or changing any files.
@@ -42,6 +45,7 @@ The package is under `HgVS_2026/bin/Release/net472/HgVS_2026.vsix`.
 - Refresh reloads baselines for all open text views, including files whose repository was created after opening them.
 - Colors are configurable under Fonts and Colors as `Mercurial added/modified/deleted lines`.
 - Filename support follows the installed Mercurial client. Older Windows clients may require filenames representable in the Windows ANSI code page.
+- Popup highlighting uses the file's content type and VS classifiers. Semantic colors depend on the language's support for standalone preview buffers.
 
 ## Checks
 
@@ -52,9 +56,10 @@ Fixtures and the compiled test executable stay in the ignored `work/` directory.
 
 The checks cover line markers, old text, EOF deletion, whitespace, encodings, added and renamed files,
 parent-versus-tip behavior, refresh after commit, and cancellation. WPF regressions also check marker reuse,
-stable layout, large changes outside the viewport, Escape from popup/editor focus, and interception of clicks
-before the built-in selection margin. Queue checks cover debounce, background snapshot reads, cancellation,
-and serialization of a slow differencing engine. UI placement and popup interaction
-still require an Experimental Instance check.
+stable layout, large changes outside the viewport, preservation of markers during recalculation, and interception
+of clicks before the built-in selection margin. Popup checks exercise Escape through WPF and the shell command
+target, shell Copy, focus scoping, read-only input, and disposal. Scrollbar checks inspect the rendered colors.
+Queue checks cover debounce, background snapshot reads, cancellation, and serialization of a slow differencing engine.
+Placement, language coloring, and interaction with CodeLens still require a manual check inside Visual Studio.
 
 The editor integration is adapted from Git Diff Margin. See THIRD-PARTY-NOTICES.md and LICENSE.txt.

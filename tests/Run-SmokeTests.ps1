@@ -15,7 +15,14 @@ $testExecutable = Join-Path $testWork 'HgVsSmokeTests.exe'
 $editorPath = Join-Path $VisualStudioPath 'Common7\IDE\CommonExtensions\Microsoft\Editor'
 $compiler = Join-Path $VisualStudioPath 'MSBuild\Current\Bin\Roslyn\csc.exe'
 $framework = 'C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2'
+$shellRefs = @(
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.interop/17.14.40260/lib/net472/Microsoft.VisualStudio.Interop.dll",
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.shell.framework/17.14.40264/lib/net472/Microsoft.VisualStudio.Shell.Framework.dll",
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.shell.15.0/17.14.40264/lib/net472/Microsoft.VisualStudio.Shell.15.0.dll"
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.threading.only/17.14.15/lib/net472/Microsoft.VisualStudio.Threading.dll"
+) | ForEach-Object { "/reference:$_" }
 & $compiler /nologo /target:exe /langversion:latest /nullable:enable "/out:$testExecutable" `
+    $shellRefs `
     '/reference:C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2\Facades\netstandard.dll' `
     "/reference:$(Join-Path $editorPath 'Microsoft.VisualStudio.Text.Data.dll')" `
     "/reference:$(Join-Path $editorPath 'Microsoft.VisualStudio.Text.Logic.dll')" `
@@ -33,6 +40,10 @@ $framework = 'C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.N
     (Join-Path $projectRoot 'HgVS_2026\MarkerLayout.cs') `
     (Join-Path $projectRoot 'HgVS_2026\MercurialMargin.cs') `
     (Join-Path $projectRoot 'HgVS_2026\MercurialMarginProvider.cs') `
+    (Join-Path $projectRoot 'HgVS_2026\ParentTextPopup.cs') `
+    (Join-Path $projectRoot 'HgVS_2026\MercurialChangeSet.cs') `
+    (Join-Path $projectRoot 'HgVS_2026\MercurialOverviewMargin.cs') `
+    (Join-Path $PSScriptRoot 'PopupTestServices.cs') `
     (Join-Path $PSScriptRoot 'MarginUiTests.cs') `
     (Join-Path $PSScriptRoot 'DiffUpdateTests.cs') `
     (Join-Path $PSScriptRoot 'SmokeTests.cs')

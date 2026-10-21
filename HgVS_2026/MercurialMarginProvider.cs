@@ -5,6 +5,8 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Differencing;
 using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Utilities;
 
 namespace HgVS_2026;
@@ -22,6 +24,10 @@ internal sealed class MercurialMarginProvider : IWpfTextViewMarginProvider
     [Import] internal ITextDifferencingSelectorService Differencing = null!;
     [Import] internal IEditorFormatMapService EditorFormats = null!;
     [Import] internal IClassificationFormatMapService ClassificationFormats = null!;
+    [Import] internal ITextBufferFactoryService Buffers = null!;
+    [Import] internal ITextEditorFactoryService Editors = null!;
+    [Import] internal IEditorOperationsFactoryService Operations = null!;
+    [Import(typeof(SVsServiceProvider))] internal IServiceProvider Services = null!;
 
     internal event EventHandler? RefreshRequested;
 
