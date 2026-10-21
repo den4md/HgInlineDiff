@@ -11,7 +11,9 @@ Targets Visual Studio 2022 and 2026 on Windows x64. This is the first working pr
 4. Edit the file. Green marks additions, blue marks modifications, and red triangles mark deletions.
 5. Click a marker to view the parent revision's text. Select/copy text normally; press Escape to close.
 
-Unsaved editor changes update after a short pause. The parent text is cached when a file is opened.
+Unsaved editor changes update after a 350 ms pause. Snapshot text and differences are calculated in the background;
+each view runs one comparison at a time and discards superseded results. Marker layout uses only the editor's
+existing visible lines, without formatting offscreen lines. The parent text is cached when a file is opened.
 After an external commit, update, revert, add, or rename, use **Tools > Refresh Mercurial Changes**.
 The same command is available by right-clicking the Mercurial margin.
 It refreshes all open Mercurial margins, without saving or changing any files.
@@ -50,7 +52,9 @@ Fixtures and the compiled test executable stay in the ignored `work/` directory.
 
 The checks cover line markers, old text, EOF deletion, whitespace, encodings, added and renamed files,
 parent-versus-tip behavior, refresh after commit, and cancellation. WPF regressions also check marker reuse,
-stable layout, and interception of clicks before the built-in selection margin. UI placement and popup interaction
+stable layout, large changes outside the viewport, Escape from popup/editor focus, and interception of clicks
+before the built-in selection margin. Queue checks cover debounce, background snapshot reads, cancellation,
+and serialization of a slow differencing engine. UI placement and popup interaction
 still require an Experimental Instance check.
 
 The editor integration is adapted from Git Diff Margin. See THIRD-PARTY-NOTICES.md and LICENSE.txt.

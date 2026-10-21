@@ -29,9 +29,12 @@ $framework = 'C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.N
     "/reference:$(Join-Path $framework 'System.Xaml.dll')" `
     (Join-Path $projectRoot 'HgVS_2026\MercurialRepository.cs') `
     (Join-Path $projectRoot 'HgVS_2026\LineDiff.cs') `
+    (Join-Path $projectRoot 'HgVS_2026\DiffUpdates.cs') `
+    (Join-Path $projectRoot 'HgVS_2026\MarkerLayout.cs') `
     (Join-Path $projectRoot 'HgVS_2026\MercurialMargin.cs') `
     (Join-Path $projectRoot 'HgVS_2026\MercurialMarginProvider.cs') `
     (Join-Path $PSScriptRoot 'MarginUiTests.cs') `
+    (Join-Path $PSScriptRoot 'DiffUpdateTests.cs') `
     (Join-Path $PSScriptRoot 'SmokeTests.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Smoke-test compilation failed.' }
 & $testExecutable $VisualStudioPath $MercurialPath $testWork

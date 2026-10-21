@@ -62,6 +62,8 @@ internal static class SmokeTests
         var service = (ITextDifferencingService)Activator.CreateInstance(type, nonPublic: true)!;
         var token = CancellationToken.None;
 
+        _checks += await DiffUpdateTests.RunAsync(service);
+
         Check(LineDiff.Calculate(service, "same\n", "same\n", token).Count == 0, "unchanged file");
         Check(LineDiff.Calculate(service, "a\r\nb\r\n", "a\nb\n", token).Count == 0, "line endings only");
         var changed = LineDiff.Calculate(service, "a\nb\nc\n", "a\nchanged\nc\n", token).Single();
