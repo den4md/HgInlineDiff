@@ -13,6 +13,7 @@ $testWork = Join-Path $projectRoot 'work'
 $null = New-Item -ItemType Directory -Force -Path $testWork
 $testExecutable = Join-Path $testWork 'HgVsSmokeTests.exe'
 $editorPath = Join-Path $VisualStudioPath 'Common7\IDE\CommonExtensions\Microsoft\Editor'
+$roslynPath = Join-Path $VisualStudioPath 'Common7\IDE\CommonExtensions\Microsoft\VBCSharp\LanguageServices'
 $compiler = Join-Path $VisualStudioPath 'MSBuild\Current\Bin\Roslyn\csc.exe'
 $framework = 'C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2'
 $shellRefs = @(
@@ -23,6 +24,11 @@ $shellRefs = @(
 ) | ForEach-Object { "/reference:$_" }
 & $compiler /nologo /target:exe /langversion:latest /nullable:enable "/out:$testExecutable" `
     $shellRefs `
+    "/reference:$(Join-Path $roslynPath 'Microsoft.CodeAnalysis.dll')" `
+    "/reference:$(Join-Path $roslynPath 'Microsoft.CodeAnalysis.Workspaces.dll')" `
+    "/reference:$(Join-Path $roslynPath 'Microsoft.CodeAnalysis.EditorFeatures.Text.dll')" `
+    "/reference:$(Join-Path $roslynPath 'Microsoft.CodeAnalysis.Features.dll')" `
+    "/reference:$(Join-Path $VisualStudioPath 'Common7\IDE\PublicAssemblies\System.Collections.Immutable.dll')" `
     '/reference:C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2\Facades\netstandard.dll' `
     "/reference:$(Join-Path $editorPath 'Microsoft.VisualStudio.Text.Data.dll')" `
     "/reference:$(Join-Path $editorPath 'Microsoft.VisualStudio.Text.Logic.dll')" `
@@ -44,6 +50,7 @@ $shellRefs = @(
     (Join-Path $projectRoot 'HgVS_2026\MercurialChangeSet.cs') `
     (Join-Path $projectRoot 'HgVS_2026\MercurialOverviewMargin.cs') `
     (Join-Path $PSScriptRoot 'PopupTestServices.cs') `
+    (Join-Path $PSScriptRoot 'PopupHighlightingTests.cs') `
     (Join-Path $PSScriptRoot 'MarginUiTests.cs') `
     (Join-Path $PSScriptRoot 'DiffUpdateTests.cs') `
     (Join-Path $PSScriptRoot 'SmokeTests.cs')

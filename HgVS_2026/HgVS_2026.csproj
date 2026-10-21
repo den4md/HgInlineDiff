@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.CodeAnalysis.EditorFeatures.Text" Version="4.0.1" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" />
   </ItemGroup>
 

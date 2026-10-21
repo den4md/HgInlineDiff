@@ -72,6 +72,7 @@ internal static class SmokeTests
         var token = CancellationToken.None;
 
         _checks += await DiffUpdateTests.RunAsync(service);
+        _checks += await PopupHighlightingTests.RunAsync();
 
         Check(LineDiff.Calculate(service, "same\n", "same\n", token).Count == 0, "unchanged file");
         Check(LineDiff.Calculate(service, "a\r\nb\r\n", "a\nb\n", token).Count == 0, "line endings only");

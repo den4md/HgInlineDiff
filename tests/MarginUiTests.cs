@@ -31,9 +31,13 @@ internal static class MarginUiTests
         // Real WPF elements and routed events; only the VS view/document interfaces are substituted.
         // No IDE, windows, repositories, or physical mouse input are needed for these regressions.
         ITextSnapshot snapshot = null!;
+        ITextBuffer buffer = null!;
         var lineCount = 5;
-        snapshot = InterfaceProxy<ITextSnapshot>.Create(call => call.MethodName switch
+        var image = InterfaceProxy<ITextImage>.Create(_ => null);
+        snapshot = InterfaceProxy<ITextSnapshot2>.Create(call => call.MethodName switch
         {
+            "get_TextBuffer" => buffer,
+            "get_TextImage" => image,
             "get_Length" => lineCount * 30,
             "get_LineCount" => lineCount,
             "GetLineFromLineNumber" => MakeLine(snapshot, (int)call.Args[0]),
@@ -41,10 +45,12 @@ internal static class MarginUiTests
             _ => null,
         });
         var contentType = InterfaceProxy<IContentType>.Create(call => call.MethodName == "get_TypeName" ? "CSharp" : null);
-        var buffer = InterfaceProxy<ITextBuffer>.Create(call => call.MethodName switch
+        var bufferProperties = new PropertyCollection();
+        buffer = InterfaceProxy<ITextBuffer>.Create(call => call.MethodName switch
         {
             "get_CurrentSnapshot" => snapshot,
             "get_ContentType" => contentType,
+            "get_Properties" => bufferProperties,
             _ => null,
         });
         var lineVisible = true;
@@ -164,6 +170,7 @@ internal static class MarginUiTests
                 };
                 marker.RaiseEvent(leftUp);
                 var popup = (Popup)typeof(MercurialMargin).GetField("_popup", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(margin)!;
+                if (popup == null) throw new Exception("FAILED: popup opens: " + margin.ToolTip);
                 var text = popupServices.Text;
                 Require(leftUp.Handled && popup.IsOpen && text.Text == "parent\n", "left release opens the original-text popup");
                 Require(popupServices.ReadOnly && ReferenceEquals(popupServices.ContentType, contentType),

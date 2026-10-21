@@ -4,6 +4,8 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -18,6 +20,7 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
 {
     private readonly IWpfTextView _owner;
     private readonly IWpfTextViewHost _host;
+    private readonly ParentTextWorkspace? _workspace;
     private readonly IEditorOperations _operations;
     private readonly IVsRegisterPriorityCommandTarget? _commands;
     private readonly uint _cookie;
@@ -32,17 +35,27 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
         ThreadHelper.ThrowIfNotOnUIThread();
         _owner = owner;
         var buffer = provider.Buffers.CreateTextBuffer(text, owner.TextBuffer.ContentType);
-        Preview = provider.Editors.CreateTextView(buffer, provider.Editors.CreateTextViewRoleSet(
-            PredefinedTextViewRoles.Analyzable, PredefinedTextViewRoles.Interactive));
-        Preview.Options.SetOptionValue(DefaultTextViewOptions.ViewProhibitUserInputId, true);
-        Preview.Options.SetOptionValue(DefaultTextViewHostOptions.GlyphMarginId, false);
-        Preview.Options.SetOptionValue(DefaultTextViewHostOptions.LineNumberMarginId, false);
-        Preview.Options.SetOptionValue(DefaultTextViewHostOptions.OutliningMarginId, false);
-        Preview.Options.SetOptionValue(DefaultTextViewHostOptions.ZoomControlId, false);
-        Preview.Background = owner.Background;
-        Preview.ZoomLevel = owner.ZoomLevel;
-        try { _host = provider.Editors.CreateTextViewHost(Preview, false); }
-        catch { Preview.Close(); throw; }
+        var source = owner.TextBuffer.AsTextContainer();
+        if (Workspace.TryGetWorkspace(source, out var workspace))
+        {
+            var document = workspace.CurrentSolution.GetDocument(workspace.GetDocumentIdInCurrentContext(source));
+            if (document != null)
+                _workspace = new ParentTextWorkspace(document, buffer.AsTextContainer());
+        }
+        try
+        {
+            Preview = provider.Editors.CreateTextView(buffer, provider.Editors.CreateTextViewRoleSet(
+                PredefinedTextViewRoles.Analyzable, PredefinedTextViewRoles.Interactive));
+            Preview.Options.SetOptionValue(DefaultTextViewOptions.ViewProhibitUserInputId, true);
+            Preview.Options.SetOptionValue(DefaultTextViewHostOptions.GlyphMarginId, false);
+            Preview.Options.SetOptionValue(DefaultTextViewHostOptions.LineNumberMarginId, false);
+            Preview.Options.SetOptionValue(DefaultTextViewHostOptions.OutliningMarginId, false);
+            Preview.Options.SetOptionValue(DefaultTextViewHostOptions.ZoomControlId, false);
+            Preview.Background = owner.Background;
+            Preview.ZoomLevel = owner.ZoomLevel;
+            _host = provider.Editors.CreateTextViewHost(Preview, false);
+        }
+        catch { Preview?.Close(); _workspace?.Dispose(); throw; }
         try
         {
             _window = Window.GetWindow(owner.VisualElement);
@@ -259,6 +272,28 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
         _owner.VisualElement.IsVisibleChanged -= OnOwnerVisibilityChanged;
         _owner.VisualElement.RemoveHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnKeyDown));
         IsOpen = false;
-        _host.Close();
+        try { _host.Close(); }
+        finally { _workspace?.Dispose(); }
+    }
+}
+
+// Roslyn classifiers require an open document, even when the buffer has the correct content type.
+internal sealed class ParentTextWorkspace : Workspace
+{
+    internal ParentTextWorkspace(Document document, SourceTextContainer text)
+        : base(document.Project.Solution.Workspace.Services.HostServices, WorkspaceKind.Preview)
+    {
+        try
+        {
+            SetCurrentSolution(document.Project.Solution.WithDocumentText(document.Id, text.CurrentText));
+            OnDocumentOpened(document.Id, text);
+        }
+        catch { Dispose(); throw; }
+    }
+
+    protected override void Dispose(bool finalize)
+    {
+        base.Dispose(finalize);
+        ClearSolution();
     }
 }
