@@ -16,6 +16,7 @@ internal static class SmokeTests
     private static string _hg = string.Empty;
     private static int _checks;
 
+    [STAThread]
     private static int Main(string[] args)
     {
         try
@@ -23,6 +24,7 @@ internal static class SmokeTests
             _visualStudio = args[0];
             _hg = args[1];
             AppDomain.CurrentDomain.AssemblyResolve += ResolveVisualStudioAssembly;
+            _checks += MarginUiTests.Run();
             RunAsync(args[2]).GetAwaiter().GetResult();
             Console.WriteLine("Passed " + _checks + " checks with " + Path.GetFileName(_visualStudio) + " editor assemblies.");
             return 0;

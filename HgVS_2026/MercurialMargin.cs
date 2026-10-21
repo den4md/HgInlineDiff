@@ -36,6 +36,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
     private MercurialBaseline? _baseline;
     private ITextSnapshot? _snapshot;
     private List<DiffHunk> _hunks = new List<DiffHunk>();
+    private readonly Dictionary<DiffHunk, Shape> _markers = new Dictionary<DiffHunk, Shape>();
     private Popup? _popup;
     private string _loadedPath = string.Empty;
     private bool _disposed;
@@ -51,6 +52,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _formats = formats;
         _classification = classification;
         Width = 10;
+        Visibility = Visibility.Collapsed;
         ClipToBounds = true;
         Background = Brushes.Transparent;
 
@@ -92,13 +94,21 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _baseline = null;
         _hunks.Clear();
         ClosePopup();
-        Children.Clear();
+        ClearMarkers();
         _loadedPath = _document.FilePath;
+        var filePath = _loadedPath;
+        var encoding = _document.Encoding;
         ToolTip = "Loading Mercurial parent revision...";
 
         try
         {
-            var baseline = await MercurialRepository.LoadAsync(_loadedPath, _document.Encoding, token);
+            // Filesystem checks and Process.Start can block too; keep the entire load off the UI thread.
+            var root = await Task.Run(() => MercurialRepository.FindRoot(filePath), token);
+            if (_disposed || generation != _generation || token.IsCancellationRequested)
+                return;
+            Visibility = root == null ? Visibility.Collapsed : Visibility.Visible;
+            var baseline = root == null ? null
+                : await Task.Run(() => MercurialRepository.LoadAsync(filePath, encoding, token), token);
             if (_disposed || generation != _generation || token.IsCancellationRequested)
                 return;
             _baseline = baseline;
@@ -123,7 +133,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _calculating?.Cancel();
         _timer.Stop();
         ClosePopup();
-        Children.Clear();
+        ClearMarkers();
         if (!_disposed && _baseline != null)
             _timer.Start();
     }
@@ -151,6 +161,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
                 return;
             _snapshot = snapshot;
             _hunks = hunks;
+            ClearMarkers();
             RenderMarkers();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -159,7 +170,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             if (!_disposed && generation == _generation && !token.IsCancellationRequested)
             {
                 _hunks.Clear();
-                Children.Clear();
+                ClearMarkers();
                 ToolTip = "Mercurial: " + error.Message;
                 Trace.TraceError("HgVS: {0}", error);
             }
@@ -168,14 +179,23 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
 
     private void RenderMarkers()
     {
-        Children.Clear();
         if (_disposed || _view.IsClosed || _snapshot != _view.TextSnapshot || _view.TextViewLines == null)
             return;
 
         foreach (var hunk in _hunks)
         {
             if (!GetDimensions(hunk, out var top, out var height))
+            {
+                if (_markers.TryGetValue(hunk, out var hiddenMarker))
+                    hiddenMarker.Visibility = Visibility.Collapsed;
                 continue;
+            }
+
+            if (_markers.TryGetValue(hunk, out var existing))
+            {
+                UpdateMarkerPosition(existing, hunk, top, height);
+                continue;
+            }
 
             var kind = hunk.IsDeletion ? "deleted" : hunk.IsAddition ? "added" : "modified";
             var brush = GetBrush(hunk.IsDeletion ? "HgVS.Deletion" : hunk.IsAddition ? "HgVS.Addition" : "HgVS.Modification");
@@ -198,10 +218,21 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             marker.Focusable = true;
             marker.ToolTip = "Mercurial " + kind + " lines. Click to view the parent text.";
             AutomationProperties.SetName(marker, "Mercurial " + kind + " lines");
-            marker.MouseLeftButtonUp += (sender, args) =>
+            // LeftSelectionMargin captures the mouse on button-down unless we handle it first.
+            marker.PreviewMouseLeftButtonDown += (sender, args) => args.Handled = true;
+            marker.PreviewMouseLeftButtonUp += (sender, args) =>
             {
                 ShowPopup(hunk, marker);
                 args.Handled = true;
+            };
+            marker.ContextMenu = ContextMenu;
+            marker.PreviewMouseRightButtonDown += (sender, args) => args.Handled = true;
+            marker.PreviewMouseRightButtonUp += (sender, args) =>
+            {
+                args.Handled = true;
+                ContextMenu.PlacementTarget = marker;
+                ContextMenu.Placement = PlacementMode.MousePoint;
+                ContextMenu.IsOpen = true;
             };
             marker.KeyDown += (sender, args) =>
             {
@@ -214,6 +245,27 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             SetLeft(marker, 2.5);
             SetTop(marker, top);
             Children.Add(marker);
+            _markers.Add(hunk, marker);
+        }
+    }
+
+    private void ClearMarkers()
+    {
+        _markers.Clear();
+        Children.Clear();
+    }
+
+    private static void UpdateMarkerPosition(Shape marker, DiffHunk hunk, double top, double height)
+    {
+        marker.Visibility = Visibility.Visible;
+        if (GetTop(marker) != top)
+            SetTop(marker, top);
+        height = Math.Max(2, height);
+        if (marker.Height != height)
+        {
+            marker.Height = height;
+            if (hunk.IsDeletion)
+                ((Polygon)marker).Points = new PointCollection { new Point(0, 0), new Point(8, height / 2), new Point(0, height) };
         }
     }
 
@@ -229,6 +281,8 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             // A deletion is a boundary: before the following line, or after the last line at EOF.
             var atEnd = hunk.StartLine == snapshot.LineCount;
             var line = snapshot.GetLineFromLineNumber(Math.Min(hunk.StartLine, snapshot.LineCount - 1));
+            if (!_view.TextViewLines.FormattedSpan.IntersectsWith(new SnapshotSpan(line.Start, line.End)))
+                return false;
             var viewLine = _view.GetTextViewLineContainingBufferPosition(line.Start);
             if (viewLine == null || viewLine.VisibilityState == VisibilityState.Unattached)
                 return false;
@@ -342,7 +396,11 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         ClosePopup();
         RenderMarkers();
     }
-    private void OnFormatsChanged(object? sender, FormatItemsEventArgs args) => RenderMarkers();
+    private void OnFormatsChanged(object? sender, FormatItemsEventArgs args)
+    {
+        foreach (var marker in _markers)
+            marker.Value.Fill = GetBrush(marker.Key.IsDeletion ? "HgVS.Deletion" : marker.Key.IsAddition ? "HgVS.Addition" : "HgVS.Modification");
+    }
     private void OnRefreshRequested(object? sender, EventArgs args) => _ = ReloadAsync();
     private void OnFileAction(object? sender, TextDocumentFileActionEventArgs args)
     {
@@ -370,6 +428,6 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         _document.FileActionOccurred -= OnFileAction;
         _formats.FormatMappingChanged -= OnFormatsChanged;
         ClosePopup();
-        Children.Clear();
+        ClearMarkers();
     }
 }

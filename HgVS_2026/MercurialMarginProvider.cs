@@ -34,7 +34,7 @@ internal sealed class MercurialMarginProvider : IWpfTextViewMarginProvider
             return null;
 
         // shortcut: projection editors need buffer-to-view mapping before they can show correct markers.
-        if (view.TextBuffer != document.TextBuffer || MercurialRepository.FindRoot(document.FilePath) == null)
+        if (view.TextBuffer != document.TextBuffer)
             return null;
 
         return new MercurialMargin(view, document, this,

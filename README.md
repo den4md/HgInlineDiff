@@ -37,7 +37,7 @@ The package is under `HgVS_2026/bin/Release/net472/HgVS_2026.vsix`.
 
 - Text up to 4 MiB from Mercurial and 2 million UTF-16 characters in the editor.
 - Projection editors, such as embedded language views, are skipped until buffer mapping is implemented.
-- Refresh reloads baselines for existing margins. If a file was opened before its repository was created, reopen the file.
+- Refresh reloads baselines for all open text views, including files whose repository was created after opening them.
 - Colors are configurable under Fonts and Colors as `Mercurial added/modified/deleted lines`.
 - Filename support follows the installed Mercurial client. Older Windows clients may require filenames representable in the Windows ANSI code page.
 
@@ -49,6 +49,8 @@ Pass `-VisualStudioPath` to check another installed IDE version.
 Fixtures and the compiled test executable stay in the ignored `work/` directory.
 
 The checks cover line markers, old text, EOF deletion, whitespace, encodings, added and renamed files,
-parent-versus-tip behavior, refresh after commit, and cancellation. UI placement and popup interaction still require an Experimental Instance check.
+parent-versus-tip behavior, refresh after commit, and cancellation. WPF regressions also check marker reuse,
+stable layout, and interception of clicks before the built-in selection margin. UI placement and popup interaction
+still require an Experimental Instance check.
 
 The editor integration is adapted from Git Diff Margin. See THIRD-PARTY-NOTICES.md and LICENSE.txt.

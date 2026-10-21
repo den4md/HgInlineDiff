@@ -1,0 +1,211 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.Remoting.Messaging;
+using System.Runtime.Remoting.Proxies;
+using System.Text;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using HgVS_2026;
+using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Text.Differencing;
+using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.Formatting;
+
+internal static class MarginUiTests
+{
+    public static int Run()
+    {
+        // Real WPF elements and routed events; only the VS view/document interfaces are substituted.
+        // No IDE, windows, repositories, or physical mouse input are needed for these regressions.
+        ITextSnapshot snapshot = null!;
+        snapshot = InterfaceProxy<ITextSnapshot>.Create(call => call.MethodName switch
+        {
+            "get_Length" => 150,
+            "get_LineCount" => 5,
+            "GetLineFromLineNumber" => MakeLine(snapshot, (int)call.Args[0]),
+            _ => null,
+        });
+        var buffer = InterfaceProxy<ITextBuffer>.Create(call => call.MethodName == "get_CurrentSnapshot" ? snapshot : null);
+        var lineVisible = true;
+        var lines = InterfaceProxy<IWpfTextViewLineCollection>.Create(call => call.MethodName switch
+        {
+            "get_FormattedSpan" => lineVisible ? new SnapshotSpan(snapshot, 0, 150) : new SnapshotSpan(snapshot, 120, 30),
+            "get_FirstVisibleLine" => MakeViewLine(snapshot, 0),
+            "get_LastVisibleLine" => MakeViewLine(snapshot, 4),
+            _ => null,
+        });
+        var viewElement = new Canvas();
+        var positionedLines = 0;
+        var view = InterfaceProxy<IWpfTextView>.Create(call =>
+        {
+            if (call.MethodName == "GetTextViewLineContainingBufferPosition")
+            {
+                positionedLines++;
+                return MakeViewLine(snapshot, ((SnapshotPoint)call.Args[0]).Position / 30);
+            }
+            return call.MethodName switch
+            {
+            "get_TextBuffer" => buffer,
+            "get_TextSnapshot" => snapshot,
+            "get_TextViewLines" => lines,
+            "get_ViewportTop" => 0.0,
+            "get_ViewportLeft" => 0.0,
+            "get_ViewportWidth" => 800.0,
+            "get_ViewportHeight" => 100.0,
+            "get_LineHeight" => 20.0,
+            "get_IsClosed" => false,
+            "get_VisualElement" => viewElement,
+            _ => null,
+            };
+        });
+        var document = InterfaceProxy<ITextDocument>.Create(call => call.MethodName switch
+        {
+            "get_FilePath" => System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "not-a-mercurial-file.txt"),
+            "get_Encoding" => Encoding.UTF8,
+            _ => null,
+        });
+        var formats = InterfaceProxy<IEditorFormatMap>.Create(call => call.MethodName == "GetProperties"
+            ? new ResourceDictionary { [EditorFormatDefinition.BackgroundColorId] = Colors.Blue } : null);
+
+        var previousContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+        try
+        {
+            using (var margin = new MercurialMargin(view, document, new MercurialMarginProvider(),
+                InterfaceProxy<ITextDifferencingService>.Create(call => null), formats,
+                InterfaceProxy<IClassificationFormatMap>.Create(call => call.MethodName == "get_DefaultTextProperties"
+                    ? TextFormattingRunProperties.CreateTextFormattingRunProperties() : null)))
+            {
+                margin.Visibility = Visibility.Visible;
+                SetField(margin, "_snapshot", snapshot);
+                SetField(margin, "_hunks", new List<DiffHunk> { new DiffHunk(1, 1, "parent\n", false) });
+                var render = typeof(MercurialMargin).GetMethod("RenderMarkers", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                render.Invoke(margin, null);
+                var marker = (FrameworkElement)margin.Children[0];
+                var host = new Grid();
+                host.Children.Add(margin);
+                host.Measure(new Size(10, 100));
+                host.Arrange(new Rect(0, 0, 10, 100));
+
+                var parentSelection = 0;
+                host.MouseDown += (sender, args) => parentSelection++;
+                var left = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent,
+                };
+                marker.RaiseEvent(left);
+                var leftIntercepted = left.Handled;
+                left.RoutedEvent = UIElement.MouseDownEvent;
+                marker.RaiseEvent(left);
+                var right = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Right)
+                {
+                    RoutedEvent = UIElement.PreviewMouseRightButtonDownEvent,
+                };
+                marker.RaiseEvent(right);
+
+                var watch = Stopwatch.StartNew();
+                for (var index = 0; index < 1000; index++)
+                    render.Invoke(margin, null);
+                watch.Stop();
+                var reused = ReferenceEquals(marker, margin.Children[0]);
+                var measureStable = margin.IsMeasureValid;
+                Console.WriteLine("WPF margin: 1000 unchanged renders = " + watch.ElapsedMilliseconds
+                    + " ms; marker reused=" + reused + "; measure stable=" + measureStable
+                    + "; left intercepted=" + leftIntercepted + "; parent selection=" + parentSelection
+                    + "; right intercepted=" + right.Handled);
+
+                Require(leftIntercepted && parentSelection == 0, "marker press must not reach VS line selection");
+                Require(right.Handled && marker.ContextMenu == margin.ContextMenu, "marker uses Mercurial context menu");
+                Require(reused, "layout must reuse the existing marker");
+                Require(measureStable, "unchanged marker layout must not invalidate WPF measurement");
+
+                lineVisible = false;
+                render.Invoke(margin, null);
+                Require(marker.Visibility == Visibility.Collapsed, "offscreen marker is hidden");
+                lineVisible = true;
+                render.Invoke(margin, null);
+                Require(marker.Visibility == Visibility.Visible && ReferenceEquals(marker, margin.Children[0]), "returning onscreen reuses marker");
+
+                var leftUp = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent,
+                };
+                marker.RaiseEvent(leftUp);
+                var popup = (Popup)typeof(MercurialMargin).GetField("_popup", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(margin)!;
+                var text = (TextBox)((StackPanel)((Border)popup.Child).Child).Children[1];
+                Require(leftUp.Handled && popup.IsOpen && text.Text == "parent\n", "left release opens the original-text popup");
+                popup.IsOpen = false;
+
+                var rightUp = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Right)
+                {
+                    RoutedEvent = UIElement.PreviewMouseRightButtonUpEvent,
+                };
+                marker.RaiseEvent(rightUp);
+                Require(rightUp.Handled && margin.ContextMenu.IsOpen, "right release opens Mercurial menu");
+                margin.ContextMenu.IsOpen = false;
+
+                var hunks = (List<DiffHunk>)typeof(MercurialMargin).GetField("_hunks", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(margin)!;
+                hunks.Add(new DiffHunk(3, 0, "deleted line\n", false));
+                lineVisible = false;
+                var requestsBefore = positionedLines;
+                render.Invoke(margin, null);
+                Require(positionedLines == requestsBefore, "offscreen deletions must not request line formatting");
+                return 9;
+            }
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+        }
+    }
+
+    private static ITextSnapshotLine MakeLine(ITextSnapshot snapshot, int number) =>
+        InterfaceProxy<ITextSnapshotLine>.Create(call => call.MethodName switch
+        {
+            "get_Start" => new SnapshotPoint(snapshot, number * 30),
+            "get_End" => new SnapshotPoint(snapshot, number * 30 + 29),
+            "get_EndIncludingLineBreak" => new SnapshotPoint(snapshot, (number + 1) * 30),
+            _ => null,
+        });
+
+    private static IWpfTextViewLine MakeViewLine(ITextSnapshot snapshot, int number) =>
+        InterfaceProxy<IWpfTextViewLine>.Create(call => call.MethodName switch
+        {
+            "get_Start" => new SnapshotPoint(snapshot, number * 30),
+            "get_EndIncludingLineBreak" => new SnapshotPoint(snapshot, (number + 1) * 30),
+            "get_Top" => number * 20.0,
+            "get_Bottom" => (number + 1) * 20.0,
+            "get_VisibilityState" => VisibilityState.FullyVisible,
+            _ => null,
+        });
+
+    private static void SetField(object target, string name, object value) =>
+        target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(target, value);
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+            throw new Exception("FAILED: " + message);
+    }
+
+    private sealed class InterfaceProxy<T> : RealProxy where T : class
+    {
+        private readonly Func<IMethodCallMessage, object?> _call;
+        private InterfaceProxy(Func<IMethodCallMessage, object?> call) : base(typeof(T)) => _call = call;
+        public static T Create(Func<IMethodCallMessage, object?> call) => (T)new InterfaceProxy<T>(call).GetTransparentProxy();
+        public override IMessage Invoke(IMessage message)
+        {
+            var call = (IMethodCallMessage)message;
+            try { return new ReturnMessage(_call(call), null, 0, call.LogicalCallContext, call); }
+            catch (Exception error) { return new ReturnMessage(error, call); }
+        }
+    }
+}
