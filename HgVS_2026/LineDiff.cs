@@ -9,14 +9,16 @@ internal sealed class DiffHunk
     public int StartLine { get; }
     public int LineCount { get; }
     public string OriginalText { get; }
+    public int OriginalStart { get; }
     public bool IsAddition { get; }
     public bool IsDeletion => LineCount == 0;
 
-    public DiffHunk(int startLine, int lineCount, string originalText, bool isAddition)
+    public DiffHunk(int startLine, int lineCount, string originalText, bool isAddition, int originalStart = 0)
     {
         StartLine = startLine;
         LineCount = lineCount;
         OriginalText = originalText;
+        OriginalStart = originalStart;
         IsAddition = isAddition;
     }
 }
@@ -47,7 +49,7 @@ internal static class LineDiff
                 && (current.Length == 0 || current.EndsWith("\n", System.StringComparison.Ordinal)))
                 newLineCount--;
             hunks.Add(new DiffHunk(difference.Right.Start, newLineCount,
-                original.Substring(oldSpan.Start, oldSpan.Length), oldSpan.Length == 0));
+                original.Substring(oldSpan.Start, oldSpan.Length), oldSpan.Length == 0, oldSpan.Start));
         }
         return hunks;
     }

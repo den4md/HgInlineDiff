@@ -292,9 +292,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         ClosePopup();
         try
         {
-            _popup = new ParentTextPopup(_view, _provider, marker,
-                hunk.IsAddition ? "No text in the parent revision. These lines were added." : hunk.OriginalText,
-                _baseline?.Revision ?? string.Empty, _classification);
+            _popup = new ParentTextPopup(_view, _provider, marker, hunk, _baseline, _classification);
         }
         catch (Exception error)
         {

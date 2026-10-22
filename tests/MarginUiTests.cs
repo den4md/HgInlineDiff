@@ -115,7 +115,10 @@ internal static class MarginUiTests
             {
                 margin.Visibility = Visibility.Visible;
                 SetField(margin, "_snapshot", snapshot);
-                SetField(margin, "_hunks", new List<DiffHunk> { new DiffHunk(1, 1, "parent\n", false) });
+                var parentText = "using Context;\r\nparent\r\nclass Context {}\r\n";
+                var parentStart = "using Context;\n".Length;
+                SetField(margin, "_baseline", new MercurialBaseline(parentText, "test-parent"));
+                SetField(margin, "_hunks", new List<DiffHunk> { new DiffHunk(1, 1, "parent\n", false, parentStart) });
                 var render = typeof(MercurialMargin).GetMethod("RenderMarkers", BindingFlags.Instance | BindingFlags.NonPublic)!;
                 render.Invoke(margin, null);
                 var marker = (FrameworkElement)margin.Children[0];
@@ -173,6 +176,9 @@ internal static class MarginUiTests
                 if (popup == null) throw new Exception("FAILED: popup opens: " + margin.ToolTip);
                 var text = popupServices.Text;
                 Require(leftUp.Handled && popup.IsOpen && text.Text == "parent\n", "left release opens the original-text popup");
+                Require(popupServices.BufferText == parentText.Replace("\r\n", "\n") && popupServices.UsesProjection
+                    && popupServices.ExposedSpan == new Span(parentStart, "parent\n".Length),
+                    "preview classifies the full parent but exposes only the hunk, with normalized offsets");
                 Require(popupServices.ReadOnly && ReferenceEquals(popupServices.ContentType, contentType),
                     "native preview is read-only and uses the source file's content type for highlighting");
                 Require(popup.StaysOpen, "preview must not capture clicks intended for other VS UI");
@@ -212,6 +218,15 @@ internal static class MarginUiTests
                 Require(popupServices.Target.Exec(ref commandGroup, (uint)VSConstants.VSStd2KCmdID.CANCEL,
                     0, IntPtr.Zero, IntPtr.Zero) == VSConstants.S_OK && !popup.IsOpen,
                     "shell Escape closes preview even when WPF never receives the key");
+
+                var showPopup = typeof(MercurialMargin).GetMethod("ShowPopup", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                showPopup.Invoke(margin, new object[] { new DiffHunk(1, 0, "parent\n", false, parentStart), marker });
+                Require(popupServices.UsesProjection && text.Text == "parent\n",
+                    "deletion preview exposes the deleted parent fragment");
+                showPopup.Invoke(margin, new object[] { new DiffHunk(1, 1, "", true), marker });
+                Require(!popupServices.UsesProjection && popupServices.ExposedSpan == null
+                    && text.Text == "No text in the parent revision. These lines were added.",
+                    "addition preview keeps its message without projecting an empty parent span");
 
                 SetField(margin, "_baseline", new MercurialBaseline("parent\n", "test-parent"));
                 typeof(MercurialMargin).GetMethod("ScheduleComparison", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(margin, null);
@@ -288,7 +303,7 @@ internal static class MarginUiTests
                     Require(VisualTreeHelper.GetDrawing(overview)!.Children.Count <= 100,
                         "50000 changes produce no more drawing primitives than scrollbar rows");
                 }
-                return 28;
+                return 31;
             }
         }
         finally

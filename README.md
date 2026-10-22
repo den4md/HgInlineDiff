@@ -45,7 +45,7 @@ The package is under `HgVS_2026/bin/Release/net472/HgVS_2026.vsix`.
 - Refresh reloads baselines for all open text views, including files whose repository was created after opening them.
 - Colors are configurable under Fonts and Colors as `Mercurial added/modified/deleted lines`.
 - Filename support follows the installed Mercurial client. Older Windows clients may require filenames representable in the Windows ANSI code page.
-- Popup highlighting uses the file's content type and VS classifiers. C# and Visual Basic previews register a separate Roslyn document in a temporary workspace using the source solution. Semantic colors can be incomplete because the popup contains only the changed fragment.
+- Popup highlighting uses the file's content type and VS classifiers. The complete parent file supplies context, while the popup exposes only the changed fragment. C# and Visual Basic previews register a separate Roslyn document in a temporary workspace. Other files and project references come from the current solution.
 
 ## Checks
 
@@ -59,8 +59,10 @@ parent-versus-tip behavior, refresh after commit, and cancellation. WPF regressi
 stable layout, large changes outside the viewport, preservation of markers during recalculation, and interception
 of clicks before the built-in selection margin. Popup checks exercise Escape through WPF and the shell command
 target, shell Copy, focus scoping, read-only input, and disposal. Scrollbar checks inspect the rendered colors.
-Roslyn checks classify parent-text fragments in C# and Visual Basic, verify keywords, strings, and comments,
-and check source-document isolation and preview-workspace disposal.
+Roslyn checks classify parent-text fragments in C# and Visual Basic, verify keywords, strings, comments,
+imported types, parameters, and locals declared outside the fragment, and check source-document isolation
+and preview-workspace disposal. Popup checks verify that only the hunk is exposed, including CRLF parent files,
+repeated fragments, and deletions; addition messages remain unchanged.
 Queue checks cover debounce, background snapshot reads, cancellation, and serialization of a slow differencing engine.
 Placement, language coloring, and interaction with CodeLens still require a manual check inside Visual Studio.
 

@@ -10,9 +10,11 @@ using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.Text.Projection;
 
 namespace HgVS_2026;
 
@@ -30,11 +32,13 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
     internal IWpfTextView Preview { get; }
 
     public ParentTextPopup(IWpfTextView owner, MercurialMarginProvider provider, FrameworkElement marker,
-        string text, string revision, IClassificationFormatMap classification)
+        DiffHunk hunk, MercurialBaseline? baseline, IClassificationFormatMap classification)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         _owner = owner;
-        var buffer = provider.Buffers.CreateTextBuffer(text, owner.TextBuffer.ContentType);
+        var text = hunk.IsAddition ? "No text in the parent revision. These lines were added." : hunk.OriginalText;
+        var parent = hunk.IsAddition ? null : baseline?.Text.Replace("\r\n", "\n").Replace('\r', '\n');
+        var buffer = provider.Buffers.CreateTextBuffer(parent ?? text, owner.TextBuffer.ContentType);
         var source = owner.TextBuffer.AsTextContainer();
         if (Workspace.TryGetWorkspace(source, out var workspace))
         {
@@ -44,7 +48,11 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
         }
         try
         {
-            Preview = provider.Editors.CreateTextView(buffer, provider.Editors.CreateTextViewRoleSet(
+            // Classify the complete parent file, but expose only the hunk to selection, copying, and scrolling.
+            var previewBuffer = parent == null ? buffer : provider.Projections.CreateElisionBuffer(null,
+                new NormalizedSnapshotSpanCollection(new SnapshotSpan(buffer.CurrentSnapshot, hunk.OriginalStart, text.Length)),
+                ElisionBufferOptions.None);
+            Preview = provider.Editors.CreateTextView(previewBuffer, provider.Editors.CreateTextViewRoleSet(
                 PredefinedTextViewRoles.Analyzable, PredefinedTextViewRoles.Interactive));
             Preview.Options.SetOptionValue(DefaultTextViewOptions.ViewProhibitUserInputId, true);
             Preview.Options.SetOptionValue(DefaultTextViewHostOptions.GlyphMarginId, false);
@@ -65,7 +73,7 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
             var panel = new DockPanel();
             var heading = new TextBlock
             {
-                Text = "Parent: " + revision + "  (Esc to close)",
+                Text = "Parent: " + (baseline?.Revision ?? string.Empty) + "  (Esc to close)",
                 Padding = new Thickness(8, 4, 8, 4),
                 Foreground = foreground,
             };
@@ -73,7 +81,7 @@ internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
             panel.Children.Add(heading);
             var width = Math.Min(900, Math.Max(240, owner.ViewportWidth * 0.8));
             var height = Math.Min(Math.Max(100, owner.ViewportHeight * 0.6),
-                Math.Max(60, buffer.CurrentSnapshot.LineCount * owner.LineHeight + 30));
+                Math.Max(60, Preview.TextSnapshot.LineCount * owner.LineHeight + 30));
             _host.HostControl.Width = width;
             _host.HostControl.Height = height;
             panel.Children.Add(_host.HostControl);

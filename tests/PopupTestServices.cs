@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.Text.Projection;
 using Microsoft.VisualStudio.Utilities;
 
 // Real WPF popup content; VS factories and the shell's command registry are substituted.
@@ -19,6 +20,9 @@ internal sealed class PopupTestServices : System.IServiceProvider
     public int HostsClosed { get; private set; }
     public bool ReadOnly { get; private set; }
     public IContentType? ContentType { get; private set; }
+    public string BufferText { get; private set; } = string.Empty;
+    public Span? ExposedSpan { get; private set; }
+    public bool UsesProjection { get; private set; }
     public IOleCommandTarget? Target { get; private set; }
     private readonly IVsRegisterPriorityCommandTarget _registry;
 
@@ -43,17 +47,35 @@ internal sealed class PopupTestServices : System.IServiceProvider
             "GetText" => Text.Text,
             _ => null,
         });
+        var sourceSnapshot = MarginUiTests.InterfaceProxy<ITextSnapshot>.Create(call => call.MethodName switch
+        {
+            "get_Length" => BufferText.Length,
+            "get_LineCount" => BufferText.Split('\n').Length,
+            "GetText" => BufferText,
+            _ => null,
+        });
         var buffer = MarginUiTests.InterfaceProxy<ITextBuffer>.Create(call => call.MethodName switch
         {
-            "get_CurrentSnapshot" => snapshot,
+            "get_CurrentSnapshot" => sourceSnapshot,
             "get_ContentType" => ContentType,
             _ => null,
         });
         provider.Buffers = MarginUiTests.InterfaceProxy<ITextBufferFactoryService>.Create(call =>
         {
-            Text.Text = (string)call.Args[0];
+            Text.Text = BufferText = (string)call.Args[0];
+            ExposedSpan = null;
             ContentType = (IContentType)call.Args[1];
             return buffer;
+        });
+        var projection = MarginUiTests.InterfaceProxy<IElisionBuffer>.Create(call =>
+            call.MethodName == "get_CurrentSnapshot" ? snapshot : null);
+        provider.Projections = MarginUiTests.InterfaceProxy<IProjectionBufferFactoryService>.Create(call =>
+        {
+            var spans = (NormalizedSnapshotSpanCollection)call.Args[1];
+            if (spans.Count != 1) throw new Exception("Preview must expose exactly one parent fragment.");
+            ExposedSpan = spans[0].Span;
+            Text.Text = BufferText.Substring(ExposedSpan.Value.Start, ExposedSpan.Value.Length);
+            return projection;
         });
         var options = MarginUiTests.InterfaceProxy<IEditorOptions>.Create(call =>
         {
@@ -85,12 +107,16 @@ internal sealed class PopupTestServices : System.IServiceProvider
                 };
             });
         }
-        provider.Editors = MarginUiTests.InterfaceProxy<ITextEditorFactoryService>.Create(call => call.MethodName switch
+        provider.Editors = MarginUiTests.InterfaceProxy<ITextEditorFactoryService>.Create(call =>
         {
-            "CreateTextView" => preview,
-            "CreateTextViewHost" => CreateHost(),
-            "CreateTextViewRoleSet" => MarginUiTests.InterfaceProxy<ITextViewRoleSet>.Create(_ => null),
-            _ => null,
+            if (call.MethodName == "CreateTextView") UsesProjection = ReferenceEquals(call.Args[0], projection);
+            return call.MethodName switch
+            {
+                "CreateTextView" => preview,
+                "CreateTextViewHost" => CreateHost(),
+                "CreateTextViewRoleSet" => MarginUiTests.InterfaceProxy<ITextViewRoleSet>.Create(_ => null),
+                _ => null,
+            };
         });
         var operations = MarginUiTests.InterfaceProxy<IEditorOperations>.Create(call =>
         {

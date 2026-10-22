@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Differencing;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.Text.Projection;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Utilities;
 
@@ -25,6 +26,7 @@ internal sealed class MercurialMarginProvider : IWpfTextViewMarginProvider
     [Import] internal IEditorFormatMapService EditorFormats = null!;
     [Import] internal IClassificationFormatMapService ClassificationFormats = null!;
     [Import] internal ITextBufferFactoryService Buffers = null!;
+    [Import] internal IProjectionBufferFactoryService Projections = null!;
     [Import] internal ITextEditorFactoryService Editors = null!;
     [Import] internal IEditorOperationsFactoryService Operations = null!;
     [Import(typeof(SVsServiceProvider))] internal IServiceProvider Services = null!;

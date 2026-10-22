@@ -79,6 +79,11 @@ internal static class SmokeTests
         var changed = LineDiff.Calculate(service, "a\nb\nc\n", "a\nchanged\nc\n", token).Single();
         Check(changed.StartLine == 1 && changed.LineCount == 1 && !changed.IsAddition && !changed.IsDeletion, "modified line coordinates");
         Check(changed.OriginalText == "b\n", "modified original text");
+        var repeatedParent = "header\r\nold\r\nkeep\r\nold";
+        var repeated = LineDiff.Calculate(service, repeatedParent, "header\nnew\nkeep\n", token);
+        Check(repeated.Count == 2 && repeated[0].OriginalStart == 7 && repeated[1].OriginalStart == 16
+            && repeated.All(hunk => repeatedParent.Replace("\r\n", "\n").Substring(hunk.OriginalStart, hunk.OriginalText.Length) == hunk.OriginalText),
+            "parent offsets identify repeated fragments after CRLF normalization, including deletion at EOF");
         var added = LineDiff.Calculate(service, "a\nc\n", "a\nb\nc\n", token).Single();
         Check(added.StartLine == 1 && added.LineCount == 1 && added.IsAddition, "added line coordinates");
         var deleted = LineDiff.Calculate(service, "a\nb\nc\n", "a\nc\n", token).Single();
