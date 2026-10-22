@@ -10,7 +10,7 @@ using Microsoft.VisualStudio.Text.Projection;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Utilities;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 [Export(typeof(IWpfTextViewMarginProvider))]
 [Export(typeof(MercurialMarginProvider))]

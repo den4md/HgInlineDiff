@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Differencing;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 // Owns debounce, cancellation and serialization; callers only submit immutable editor snapshots.
 internal sealed class DiffUpdates : IDisposable

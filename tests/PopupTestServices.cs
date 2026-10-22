@@ -1,6 +1,6 @@
 using System;
 using System.Windows.Controls;
-using HgVS_2026;
+using HgInlineDiff;
 using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;

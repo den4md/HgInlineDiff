@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using HgVS_2026;
+using HgInlineDiff;
 using Microsoft.VisualStudio.Text.Differencing;
 
 internal static class SmokeTests

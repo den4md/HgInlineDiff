@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Microsoft.VisualStudio.Text.Differencing;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 internal sealed class DiffHunk
 {

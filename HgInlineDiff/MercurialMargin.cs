@@ -19,11 +19,11 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Differencing;
 using Microsoft.VisualStudio.Text.Editor;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
 {
-    public const string MarginName = "HgVS.MercurialMargin";
+    public const string MarginName = "HgInlineDiff.MercurialMargin";
     private readonly IWpfTextView _view;
     private readonly ITextDocument _document;
     private readonly MercurialMarginProvider _provider;
@@ -126,7 +126,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
             if (!_disposed && generation == _generation)
             {
                 ToolTip = "Mercurial: " + error.Message;
-                Trace.TraceError("HgVS: {0}", error);
+                Trace.TraceError("HgInlineDiff: {0}", error);
             }
         }
     }
@@ -175,7 +175,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
                 Opacity = 1;
                 IsHitTestVisible = true;
                 ToolTip = "Mercurial: " + error.Message;
-                Trace.TraceError("HgVS: {0}", error);
+                Trace.TraceError("HgInlineDiff: {0}", error);
             }
         }
     }
@@ -297,7 +297,7 @@ internal sealed class MercurialMargin : Canvas, IWpfTextViewMargin
         catch (Exception error)
         {
             ToolTip = "Mercurial preview: " + error.Message;
-            Trace.TraceError("HgVS preview: {0}", error);
+            Trace.TraceError("HgInlineDiff preview: {0}", error);
             return;
         }
         var openedPopup = _popup;

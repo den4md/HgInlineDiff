@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Commands package="guidHgInlineDiffPackage">
+    <Groups>
+      <Group guid="guidHgInlineDiffCommands" id="HgInlineDiffGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      </Group>
+    </Groups>
+    <Buttons>
+      <Button guid="guidHgInlineDiffCommands" id="RefreshChanges" priority="0x0100" type="Button">
+        <Parent guid="guidHgInlineDiffCommands" id="HgInlineDiffGroup" />
+        <Strings>
+          <ButtonText>Refresh Mercurial Changes</ButtonText>
+          <CommandName>HgInlineDiff.RefreshMercurialChanges</CommandName>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+  <Symbols>
+    <GuidSymbol name="guidHgInlineDiffPackage" value="{1df11092-851d-4ca9-a39c-84ecf2492afe}" />
+    <GuidSymbol name="guidHgInlineDiffCommands" value="{b247faed-0622-43ee-9a24-a9636a89760f}">
+      <IDSymbol name="HgInlineDiffGroup" value="0x1020" />
+      <IDSymbol name="RefreshChanges" value="0x0100" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

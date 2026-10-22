@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Shell;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [Guid(PackageGuid)]
-public sealed class HgVsPackage : AsyncPackage
+public sealed class HgInlineDiffPackage : AsyncPackage
 {
     public const string PackageGuid = "1df11092-851d-4ca9-a39c-84ecf2492afe";
     private static readonly Guid CommandSet = new Guid("b247faed-0622-43ee-9a24-a9636a89760f");

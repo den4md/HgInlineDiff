@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 // Both margins consume the same completed comparison, including while its replacement is pending.
 internal sealed class MercurialChangeSet

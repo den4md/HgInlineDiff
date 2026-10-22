@@ -6,6 +6,9 @@
     <LangVersion>14</LangVersion>
     <UseWPF>true</UseWPF>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <Version>0.1.6</Version>
+    <Product>HgInlineDiff</Product>
+    <Description>Mercurial change markers and parent-text previews for Visual Studio.</Description>
 
     <!-- VSIX settings -->
     <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
@@ -32,6 +35,10 @@
   <ItemGroup>
     <Content Include="..\LICENSE.txt;..\THIRD-PARTY-NOTICES.md">
       <Link>%(Filename)%(Extension)</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="..\assets\logo-90px.png">
+      <Link>assets\logo-90px.png</Link>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
   </ItemGroup>

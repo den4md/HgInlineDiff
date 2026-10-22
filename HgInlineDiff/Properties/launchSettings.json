@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "HgVS_2026": {
+    "HgInlineDiff": {
       "commandName": "VsixDebugger"
     }
   }

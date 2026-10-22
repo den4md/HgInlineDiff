@@ -1,16 +1,32 @@
-# HgVS Mercurial Margin
+# HgInlineDiff
 
-Mercurial change markers and parent-text popups in the Visual Studio editor.
-Targets Visual Studio 2022 and 2026 on Windows x64. This is the first working prototype.
+<img src="assets/logo.svg" width="96" height="96" alt="HgInlineDiff logo">
+
+Mercurial change markers and parent-text previews in the Visual Studio editor.
+For Visual Studio 2022 and 2026 on Windows x64.
+
+[Download the VSIX](https://github.com/den4md/HgInlineDiff/releases/latest) · [Report an issue](https://github.com/den4md/HgInlineDiff/issues) · [MIT license](LICENSE.txt)
+
+## Install
+
+1. Download and install [TortoiseHg for Windows](https://tortoisehg.bitbucket.io/download/).
+   It includes the Mercurial command-line client. A standalone Mercurial installation also works.
+2. Open a new terminal and run `hg --version`. If the command is not found, add the directory containing
+   `hg.exe` to PATH, usually `C:\Program Files\TortoiseHg`, and check again in a new terminal.
+3. Close all Visual Studio instances. Download `HgInlineDiff.vsix` from
+   [GitHub Releases](https://github.com/den4md/HgInlineDiff/releases/latest), open it, and select the installed Visual Studio versions.
+4. Start Visual Studio and open a tracked text file in a Mercurial working copy.
+   No Source Control provider selection is needed.
+
+HgInlineDiff keeps the extension ID used by earlier development builds named HgVS Mercurial Margin.
+Version 0.1.6 updates version 0.1.5 in place. Do not install both packages as separate extensions.
 
 ## Use
 
-1. Install Mercurial or TortoiseHg with `hg.exe` available on PATH, then restart Visual Studio.
-2. Install the VSIX or press F5 in Visual Studio 2026 to run the Experimental Instance.
-3. Open a tracked text file in a Mercurial working copy.
-4. Edit the file. Green marks additions, blue marks modifications, and red triangles mark deletions.
-5. Click a marker to view the parent revision's text with the file's language highlighting.
-   Select/copy with Ctrl+C or the context menu; press Escape to close and return focus to the editor.
+Edit a file to see green additions, blue modifications, and red deletion triangles beside its lines.
+The scrollbar shows the same changes throughout the file.
+Click a marker to view the parent revision's text with the file's language highlighting.
+Select and copy with Ctrl+C or the context menu; press Escape to return focus to the editor.
 
 Unsaved editor changes update after a 350 ms pause. Snapshot text and differences are calculated in the background;
 each view runs one comparison at a time and discards superseded results. Marker layout uses only the editor's
@@ -20,32 +36,43 @@ green additions, blue modifications, and red deletion marks, using the editor's 
 After an external commit, update, revert, add, or rename, use **Tools > Refresh Mercurial Changes**.
 The same command is available by right-clicking the Mercurial margin.
 It refreshes all open Mercurial margins, without saving or changing any files.
-Assign a shortcut under Tools > Options > Environment > Keyboard using `HgVS.RefreshMercurialChanges`.
+Assign a shortcut under Tools > Options > Environment > Keyboard using `HgInlineDiff.RefreshMercurialChanges`.
 
 The baseline is the working copy's first parent, not the repository's newest changeset.
 Added tracked files are compared with empty text. Untracked, ignored, and binary files are skipped.
 Copied and renamed files use the source path from Mercurial's copy metadata.
 Line-ending conversions are ignored; other whitespace changes are shown.
 
-## Build
-
-Use Visual Studio 2026 with the **Visual Studio extension development** workload and .NET Framework 4.7.2 targeting pack.
-Open `HgVS_2026.slnx`, restore NuGet packages, and build. Building uses the VS 2026 compiler; the resulting extension targets VS 2022 APIs.
-
-```powershell
-& 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe' HgVS_2026.slnx /restore /p:Configuration=Release /p:DeployExtension=false
-```
-
-The package is under `HgVS_2026/bin/Release/net472/HgVS_2026.vsix`.
-
-## Prototype limits
+## Requirements and limits
 
 - Text up to 4 MiB from Mercurial and 2 million UTF-16 characters in the editor.
 - Projection editors, such as embedded language views, are skipped until buffer mapping is implemented.
-- Refresh reloads baselines for all open text views, including files whose repository was created after opening them.
 - Colors are configurable under Fonts and Colors as `Mercurial added/modified/deleted lines`.
 - Filename support follows the installed Mercurial client. Older Windows clients may require filenames representable in the Windows ANSI code page.
 - Popup highlighting uses the file's content type and VS classifiers. The complete parent file supplies context, while the popup exposes only the changed fragment. C# and Visual Basic previews register a separate Roslyn document in a temporary workspace. Other files and project references come from the current solution.
+
+## Troubleshooting
+
+- **No markers outside Mercurial:** this is expected. Files outside a directory containing `.hg` do not start the Mercurial client.
+- **Mercurial is missing:** inside a working copy, the margin tooltip reports that `hg.exe` could not start.
+  Install TortoiseHg, check PATH, restart Visual Studio, and use **Tools > Refresh Mercurial Changes**.
+  There is no retry loop while typing; opening another file or refreshing attempts to load its baseline again.
+- **Markers still use the previous commit:** refresh after committing or updating outside the editor.
+  Refresh also finds repositories created after a file was opened.
+
+## Build
+
+Use Visual Studio 2026 with the **Visual Studio extension development** workload and .NET Framework 4.7.2 targeting pack.
+Open `HgInlineDiff.slnx`, restore NuGet packages, and build. Building uses the VS 2026 compiler; the resulting extension targets VS 2022 APIs.
+Press F5 to try it in the Visual Studio Experimental Instance.
+
+For a Visual Studio 2026 Enterprise installation:
+
+```powershell
+& 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe' HgInlineDiff.slnx /restore /p:Configuration=Release /p:DeployExtension=false
+```
+
+The package is under `HgInlineDiff/bin/Release/net472/HgInlineDiff.vsix`.
 
 ## Checks
 

@@ -6,7 +6,7 @@ using System.Linq;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Formatting;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 internal readonly struct MarkerPlacement
 {

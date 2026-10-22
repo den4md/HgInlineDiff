@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 internal sealed class MercurialBaseline
 {

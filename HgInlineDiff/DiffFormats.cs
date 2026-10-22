@@ -4,7 +4,7 @@ using System.Windows.Media;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 [Export(typeof(EditorFormatDefinition)), Name("HgVS.Addition"), UserVisible(true)]
 internal sealed class AdditionFormat : EditorFormatDefinition

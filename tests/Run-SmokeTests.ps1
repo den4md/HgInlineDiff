@@ -11,7 +11,7 @@ if (!$VisualStudioPath) {
 }
 $testWork = Join-Path $projectRoot 'work'
 $null = New-Item -ItemType Directory -Force -Path $testWork
-$testExecutable = Join-Path $testWork 'HgVsSmokeTests.exe'
+$testExecutable = Join-Path $testWork 'HgInlineDiffSmokeTests.exe'
 $editorPath = Join-Path $VisualStudioPath 'Common7\IDE\CommonExtensions\Microsoft\Editor'
 $roslynPath = Join-Path $VisualStudioPath 'Common7\IDE\CommonExtensions\Microsoft\VBCSharp\LanguageServices'
 $compiler = Join-Path $VisualStudioPath 'MSBuild\Current\Bin\Roslyn\csc.exe'
@@ -40,15 +40,15 @@ $shellRefs = @(
     "/reference:$(Join-Path $framework 'PresentationCore.dll')" `
     "/reference:$(Join-Path $framework 'PresentationFramework.dll')" `
     "/reference:$(Join-Path $framework 'System.Xaml.dll')" `
-    (Join-Path $projectRoot 'HgVS_2026\MercurialRepository.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\LineDiff.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\DiffUpdates.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\MarkerLayout.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\MercurialMargin.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\MercurialMarginProvider.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\ParentTextPopup.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\MercurialChangeSet.cs') `
-    (Join-Path $projectRoot 'HgVS_2026\MercurialOverviewMargin.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialRepository.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\LineDiff.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\DiffUpdates.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MarkerLayout.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialMargin.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialMarginProvider.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\ParentTextPopup.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialChangeSet.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialOverviewMargin.cs') `
     (Join-Path $PSScriptRoot 'PopupTestServices.cs') `
     (Join-Path $PSScriptRoot 'PopupHighlightingTests.cs') `
     (Join-Path $PSScriptRoot 'MarginUiTests.cs') `

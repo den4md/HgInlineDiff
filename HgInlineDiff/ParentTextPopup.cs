@@ -16,7 +16,7 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Text.Projection;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 internal sealed class ParentTextPopup : Popup, IOleCommandTarget, IDisposable
 {

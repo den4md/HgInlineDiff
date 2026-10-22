@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.1.5" Language="en-US" Publisher="den4md" />
-    <DisplayName>HgVS Mercurial Margin</DisplayName>
-    <Description>Mercurial change markers and original-text popups for Visual Studio 2022 and 2026.</Description>
+    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.1.6" Language="en-US" Publisher="den4md" />
+    <DisplayName>HgInlineDiff</DisplayName>
+    <Description>Mercurial change markers and parent-text previews in the Visual Studio 2022 and 2026 editor.</Description>
+    <MoreInfo>https://github.com/den4md/HgInlineDiff</MoreInfo>
     <License>LICENSE.txt</License>
+    <ReleaseNotes>https://github.com/den4md/HgInlineDiff/releases</ReleaseNotes>
+    <Icon>assets\logo-90px.png</Icon>
+    <PreviewImage>assets\logo-90px.png</PreviewImage>
+    <Tags>Mercurial, diff, editor, change markers</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, )">

@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Utilities;
 
-namespace HgVS_2026;
+namespace HgInlineDiff;
 
 [Export(typeof(IWpfTextViewMarginProvider))]
 [Name(MercurialOverviewMargin.MarginName)]
@@ -30,7 +30,7 @@ internal sealed class MercurialOverviewMarginProvider : IWpfTextViewMarginProvid
 
 internal sealed class MercurialOverviewMargin : FrameworkElement, IWpfTextViewMargin
 {
-    public const string MarginName = "HgVS.MercurialOverviewMargin";
+    public const string MarginName = "HgInlineDiff.MercurialOverviewMargin";
     private readonly IWpfTextView _view;
     private readonly IVerticalScrollBar _scroll;
     private readonly FrameworkElement _scrollElement;
