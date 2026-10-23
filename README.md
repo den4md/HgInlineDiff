@@ -19,7 +19,7 @@ For Visual Studio 2022 and 2026 on Windows x64.
    HgInlineDiff activates its Source Control provider automatically for Mercurial solutions.
 
 HgInlineDiff keeps the extension ID used by earlier development builds named HgVS Mercurial Margin.
-Version 0.2.0 updates earlier versions in place. Do not install both packages as separate extensions.
+Version 0.2.1 updates earlier versions in place. Do not install both packages as separate extensions.
 
 ## Use
 
@@ -40,10 +40,14 @@ Assign a shortcut under Tools > Options > Environment > Keyboard using `HgInline
 
 ### Solution Explorer and changes window
 
-Solution Explorer shows a green dot for clean files and folders, a red dot for modified files and folders,
-and `+`, `×`, `!`, or `?` for added, removed, missing, or untracked files. A folder becomes modified when
+Solution Explorer uses Visual Studio's standard source control icons for clean, changed, and untracked
+files and folders. Modified, added, removed, and missing files share the standard changed icon;
+their exact status is available in the tooltip and changes window. A folder becomes modified when
 any file below it changes, including files outside the project. Ignored files have no status icon.
-HgInlineDiff takes priority as the Source Control provider when a Mercurial solution is detected.
+HgInlineDiff activates its Source Control provider for Mercurial solutions. A manual change to another
+provider is respected until the solution changes. Git solutions retain the installed Git provider,
+including when Visual Studio restores HgInlineDiff as the provider from a previous session.
+Repository detection stops at a Git repository or worktree boundary.
 Remove VisualHgMod2 if it is installed to avoid competing automatic provider selection.
 
 Open **View > Other Windows > HgInlineDiff: Changes** for a list of changed files throughout each
@@ -116,9 +120,10 @@ repeated fragments, and deletions; addition messages remain unchanged.
 Queue checks cover debounce, background snapshot reads, cancellation, and serialization of a slow differencing engine.
 Status checks use temporary Mercurial repositories and real WPF controls with substituted shell interfaces.
 They cover all five change statuses, binary and non-project files, ignored files, renames, copies,
-recursive folder aggregation, multiple repositories, batched glyph requests, 64-bit image list handles,
+recursive folder aggregation, multiple repositories, batched requests for standard Visual Studio glyphs,
 path sorting, selection preservation, filesystem/save/activation refresh, recovery after failure,
-cancellation on solution close, and shell event unsubscription.
+cancellation on solution close, shell event unsubscription, manual provider selection, transitions to Git,
+Git worktree boundaries, glyphs derived from shell status, and spacing in the changes list.
 Placement, language coloring, and interaction with CodeLens still require a manual check inside Visual Studio.
 Solution Explorer glyph placement and preview-tab interaction also require an in-IDE check.
 

@@ -1,7 +1,5 @@
 using System;
-using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -10,30 +8,54 @@ namespace HgInlineDiff;
 
 [Guid(ServiceGuid)]
 [ComVisible(true)]
-public sealed class MercurialStatusService : IVsSccProvider, IVsSccManager2, IVsSccGlyphs,
+public sealed class MercurialStatusService : IVsSccProvider, IVsSccManager2,
     IVsSccManagerTooltip, IDisposable
 {
     public const string ServiceGuid = "25898c71-47e2-4751-b8a7-606384b37722";
     public const string ProviderGuid = "67685710-c12a-4a24-8b27-3f279c7166a1";
-    private const string States = "CMAR!?";
     private readonly MercurialStatusMonitor _monitor;
     private readonly IVsRegisterScciProvider _registration;
-    private ImageList? _images;
-    private uint _baseIndex;
+    private readonly IVsGetScciProviderInterface _selection;
+    private readonly Guid _gitProvider;
+    private Guid? _previousProvider;
+    private string _solutionFile = string.Empty;
+    private bool _manuallyDisabled;
     private bool _active;
 
-    internal MercurialStatusService(MercurialStatusMonitor monitor, IVsRegisterScciProvider registration)
+    internal MercurialStatusService(MercurialStatusMonitor monitor, IVsRegisterScciProvider registration,
+        IVsGetScciProviderInterface selection, Guid gitProvider)
     {
         _monitor = monitor;
         _registration = registration;
+        _selection = selection;
+        _gitProvider = gitProvider;
         monitor.Changed += OnStatusChanged;
     }
 
     private void OnStatusChanged(object? sender, EventArgs args)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (!_active && _monitor.Repositories.Count != 0)
+        var solutionChanged = !_solutionFile.Equals(_monitor.SolutionFile, StringComparison.OrdinalIgnoreCase);
+        if (solutionChanged)
+        {
+            _solutionFile = _monitor.SolutionFile;
+            _manuallyDisabled = false;
+        }
+        _selection.GetSourceControlProviderID(out var selectedProvider);
+        if (_monitor.IsGitSolution || _monitor.Repositories.Count == 0)
+        {
+            // VS can restore this provider from a previous session before opening a Git solution.
+            var restore = _monitor.IsGitSolution && _gitProvider != Guid.Empty ? _gitProvider : _previousProvider;
+            if (solutionChanged && selectedProvider == new Guid(ProviderGuid) && restore.HasValue)
+                ErrorHandler.ThrowOnFailure(_registration.RegisterSourceControlProvider(restore.Value));
+            return;
+        }
+        if (!_active && !_manuallyDisabled)
+        {
+            if (selectedProvider != new Guid(ProviderGuid))
+                _previousProvider = selectedProvider;
             ErrorHandler.ThrowOnFailure(_registration.RegisterSourceControlProvider(new Guid(ProviderGuid)));
+        }
         if (!_active)
             return;
         foreach (var hierarchy in _monitor.Projects())
@@ -47,48 +69,13 @@ public sealed class MercurialStatusService : IVsSccProvider, IVsSccManager2, IVs
         }
     }
 
-    public int GetCustomGlyphList(uint baseIndex, out IntPtr imageListHandle)
+    private static VsStateIcon Icon(char status) => status switch
     {
-        ThreadHelper.ThrowIfNotOnUIThread();
-        _baseIndex = baseIndex;
-        if (_images == null)
-        {
-            _images = new ImageList { ImageSize = new Size(16, 16), ColorDepth = ColorDepth.Depth32Bit };
-            foreach (var status in States)
-            {
-                using (var bitmap = new Bitmap(16, 16))
-                using (var graphics = Graphics.FromImage(bitmap))
-                {
-                    graphics.Clear(Color.Transparent);
-                    graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    if (status == 'C' || status == 'M')
-                    {
-                        using (var brush = new SolidBrush(status == 'C' ? Color.FromArgb(115, 209, 109) : Color.FromArgb(241, 91, 104)))
-                            graphics.FillEllipse(brush, 5, 5, 6, 6);
-                    }
-                    else
-                    {
-                        using (var brush = new SolidBrush(status == 'A' ? Color.FromArgb(86, 156, 214) : Color.FromArgb(241, 91, 104)))
-                        using (var font = new Font(FontFamily.GenericSansSerif, 12, FontStyle.Bold, GraphicsUnit.Pixel))
-                        using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                            graphics.DrawString(status == 'A' ? "+" : status == 'R' ? "×" : status.ToString(),
-                                font, brush, new RectangleF(0, 0, 16, 16), format);
-                    }
-                    _images.Images.Add(bitmap);
-                    // ImageList otherwise defers copying the first bitmap until after it is disposed.
-                    _ = _images.Handle;
-                }
-            }
-        }
-        imageListHandle = _images.Handle;
-        return VSConstants.S_OK;
-    }
-
-    private VsStateIcon Icon(char status)
-    {
-        var index = status == '\0' ? -1 : States.IndexOf(status);
-        return index < 0 || _images == null ? VsStateIcon.STATEICON_NOSTATEICON : (VsStateIcon)(_baseIndex + index);
-    }
+        'C' => VsStateIcon.STATEICON_CHECKEDIN,
+        'M' or 'A' or 'R' or '!' => VsStateIcon.STATEICON_CHECKEDOUT,
+        '?' => VsStateIcon.STATEICON_ORPHANED,
+        _ => VsStateIcon.STATEICON_NOSTATEICON
+    };
 
     public int GetSccGlyph(int count, string[] paths, VsStateIcon[] glyphs, uint[] statuses)
     {
@@ -129,12 +116,17 @@ public sealed class MercurialStatusService : IVsSccProvider, IVsSccManager2, IVs
         return VSConstants.S_OK;
     }
 
-    public int SetActive() { _active = true; _monitor.RequestRefresh(); return VSConstants.S_OK; }
+    public int SetActive()
+    {
+        _active = true;
+        _manuallyDisabled = false;
+        _monitor.RequestRefresh();
+        return VSConstants.S_OK;
+    }
     public int SetInactive()
     {
         _active = false;
-        if (_monitor.Repositories.Count != 0)
-            _monitor.RequestRefresh();
+        _manuallyDisabled = true;
         return VSConstants.S_OK;
     }
     public int AnyItemsUnderSourceControl(out int result) { result = _monitor.Repositories.Count == 0 ? 0 : 1; return VSConstants.S_OK; }
@@ -148,6 +140,5 @@ public sealed class MercurialStatusService : IVsSccProvider, IVsSccManager2, IVs
     public void Dispose()
     {
         _monitor.Changed -= OnStatusChanged;
-        _images?.Dispose();
     }
 }

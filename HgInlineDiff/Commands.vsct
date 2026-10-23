@@ -18,6 +18,8 @@
       </Button>
       <Button guid="guidHgInlineDiffCommands" id="ShowChanges" priority="0x0100" type="Button">
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Icon guid="guidHgInlineDiffImages" id="ProjectLogo" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
           <ButtonText>HgInlineDiff: Changes</ButtonText>
           <CommandName>HgInlineDiff.ShowChanges</CommandName>
@@ -26,6 +28,9 @@
     </Buttons>
   </Commands>
   <Symbols>
+    <GuidSymbol name="guidHgInlineDiffImages" value="{378105bb-1d68-486b-815c-4a938f595a70}">
+      <IDSymbol name="ProjectLogo" value="1" />
+    </GuidSymbol>
     <GuidSymbol name="guidHgInlineDiffPackage" value="{1df11092-851d-4ca9-a39c-84ecf2492afe}" />
     <GuidSymbol name="guidHgInlineDiffCommands" value="{b247faed-0622-43ee-9a24-a9636a89760f}">
       <IDSymbol name="HgInlineDiffGroup" value="0x1020" />

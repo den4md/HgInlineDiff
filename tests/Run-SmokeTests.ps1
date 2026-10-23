@@ -23,6 +23,9 @@ $shellRefs = @(
     "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.threading.only/17.14.15/lib/net472/Microsoft.VisualStudio.Threading.dll"
     "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.componentmodelhost/17.14.106/lib/net472/Microsoft.VisualStudio.ComponentModelHost.dll"
     "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.utilities/17.14.40264/lib/net472/Microsoft.VisualStudio.Utilities.dll"
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.imaging/17.14.40264/lib/net472/Microsoft.VisualStudio.Imaging.dll"
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.imagecatalog/17.14.40260/lib/net472/Microsoft.VisualStudio.ImageCatalog.dll"
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.imaging.interop.14.0.designtime/17.14.40254/lib/net472/Microsoft.VisualStudio.Imaging.Interop.14.0.DesignTime.dll"
 ) | ForEach-Object { "/reference:$_" }
 & $compiler /nologo /target:exe /langversion:latest /nullable:enable "/out:$testExecutable" `
     $shellRefs `
@@ -42,8 +45,6 @@ $shellRefs = @(
     "/reference:$(Join-Path $framework 'PresentationCore.dll')" `
     "/reference:$(Join-Path $framework 'PresentationFramework.dll')" `
     "/reference:$(Join-Path $framework 'System.Xaml.dll')" `
-    "/reference:$(Join-Path $framework 'System.Drawing.dll')" `
-    "/reference:$(Join-Path $framework 'System.Windows.Forms.dll')" `
     (Join-Path $projectRoot 'HgInlineDiff\HgInlineDiffPackage.cs') `
     (Join-Path $projectRoot 'HgInlineDiff\ChangesToolWindow.cs') `
     (Join-Path $projectRoot 'HgInlineDiff\MercurialStatus.cs') `

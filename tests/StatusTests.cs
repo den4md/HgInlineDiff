@@ -60,6 +60,12 @@ internal static class StatusTests
             using var context = new JoinableTaskContext();
             var tasks = context.Factory;
             var includeSecond = true;
+            var gitOnly = false;
+            var gitRoot = Path.Combine(work, "git-status-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(gitRoot, ".git"));
+            var currentSolution = Path.Combine(root, "sample.slnx");
+            var gitProvider = Guid.NewGuid();
+            var selectedProvider = gitProvider;
             var advised = 0;
             var unadvised = 0;
             var glyphRefreshes = 0;
@@ -80,11 +86,12 @@ internal static class StatusTests
                 switch (call.MethodName)
                 {
                     case "GetSolutionInfo":
-                        call.Args[0] = root; call.Args[1] = Path.Combine(root, "sample.slnx"); call.Args[2] = string.Empty;
+                        call.Args[0] = Path.GetDirectoryName(currentSolution); call.Args[1] = currentSolution; call.Args[2] = string.Empty;
                         break;
                     case "GetProjectEnum":
                         var index = 0;
-                        var projects = includeSecond ? new[] { Project(Path.Combine(root, "sample.csproj")), Project(Path.Combine(secondRoot, "second.csproj")) }
+                        var projects = gitOnly ? new[] { Project(Path.Combine(gitRoot, "git.csproj")) }
+                            : includeSecond ? new[] { Project(Path.Combine(root, "sample.csproj")), Project(Path.Combine(secondRoot, "second.csproj")) }
                             : new[] { Project(Path.Combine(root, "sample.csproj")) };
                         call.Args[2] = MarginUiTests.InterfaceProxy<IEnumHierarchies>.Create(next =>
                         {
@@ -111,15 +118,24 @@ internal static class StatusTests
                 MercurialStatusService provider = null!;
                 var registration = MarginUiTests.InterfaceProxy<IVsRegisterScciProvider>.Create(call =>
                 {
-                    Check((Guid)call.Args[0] == new Guid(MercurialStatusService.ProviderGuid), "activate the HgInlineDiff provider");
-                    activations++;
-                    provider.SetActive();
+                    selectedProvider = (Guid)call.Args[0];
+                    if (selectedProvider == new Guid(MercurialStatusService.ProviderGuid))
+                    {
+                        activations++;
+                        provider.SetActive();
+                    }
+                    else
+                        provider.SetInactive();
                     return VSConstants.S_OK;
                 });
-                using (provider = new MercurialStatusService(monitor, registration))
+                var selection = MarginUiTests.InterfaceProxy<IVsGetScciProviderInterface>.Create(call =>
                 {
-                    provider.GetCustomGlyphList(40, out var handle);
-                    Check(handle != IntPtr.Zero && IntPtr.Size == 8, "64-bit custom glyph handle");
+                    if (call.MethodName != "GetSourceControlProviderID") return VSConstants.E_NOTIMPL;
+                    call.Args[0] = selectedProvider;
+                    return null;
+                });
+                using (provider = new MercurialStatusService(monitor, registration, selection, gitProvider))
+                {
                     tasks.Run(monitor.RefreshAsync);
                     Check(monitor.Repositories.Count == 2 && monitor.Error == string.Empty,
                         "discover solution and external project repositories: " + monitor.Repositories.Count + "; " + monitor.Error);
@@ -141,12 +157,50 @@ internal static class StatusTests
                     var glyphs = new VsStateIcon[paths.Length];
                     var flags = new uint[paths.Length];
                     provider.GetSccGlyph(paths.Length, paths, glyphs, flags);
-                    Check(glyphs.Take(6).Select(icon => (int)icon).SequenceEqual(Enumerable.Range(40, 6))
-                        && glyphs[6] == VsStateIcon.STATEICON_NOSTATEICON, "fill every item in a batched glyph request");
+                    Check(glyphs.SequenceEqual(new[]
+                    {
+                        VsStateIcon.STATEICON_CHECKEDIN,
+                        VsStateIcon.STATEICON_CHECKEDOUT, VsStateIcon.STATEICON_CHECKEDOUT,
+                        VsStateIcon.STATEICON_CHECKEDOUT, VsStateIcon.STATEICON_CHECKEDOUT,
+                        VsStateIcon.STATEICON_ORPHANED, VsStateIcon.STATEICON_NOSTATEICON
+                    }), "use standard Visual Studio glyphs for every item in a batched request");
                     Check(flags[0] == 1 && flags[1] == 3 && flags[5] == 0, "controlled, modified, and untracked shell flags");
+                    foreach (var shellStatus in new[] { 0u, 1u, 3u })
+                    {
+                        provider.GetSccGlyphFromStatus(shellStatus, glyphs);
+                        Check(glyphs[0] == (shellStatus == 0 ? VsStateIcon.STATEICON_NOSTATEICON
+                            : shellStatus == 1 ? VsStateIcon.STATEICON_CHECKEDIN : VsStateIcon.STATEICON_CHECKEDOUT),
+                            "standard glyph from shell status " + shellStatus);
+                    }
+                    selectedProvider = gitProvider;
                     provider.SetInactive();
+                    monitor.RequestRefresh();
                     tasks.Run(monitor.RefreshAsync);
-                    Check(activations == 2, "reclaim provider priority for a Mercurial solution");
+                    Check(activations == 1 && selectedProvider == gitProvider, "respect a manual provider change during refresh");
+                    selectedProvider = new Guid(MercurialStatusService.ProviderGuid);
+                    provider.SetActive();
+
+                    // AsyncPackage construction requires devenv; exercise its COM adapters without creating shell state.
+                    var package = (HgInlineDiffPackage)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(HgInlineDiffPackage));
+                    GC.SuppressFinalize(package);
+                    {
+                        var serviceField = typeof(HgInlineDiffPackage).GetField("_statusService", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                        serviceField.SetValue(package, provider);
+                        try
+                        {
+                            ((IVsSccProvider)package).SetInactive();
+                            ((IVsSccManager2)package).GetSccGlyph(paths.Length, paths, glyphs, flags);
+                            Check(glyphs.All(icon => icon == VsStateIcon.STATEICON_NOSTATEICON), "package forwards provider deactivation");
+                            ((IVsSccProvider)package).SetActive();
+                            ((IVsSccManager2)package).GetSccGlyph(paths.Length, paths, glyphs, flags);
+                            Check(glyphs[0] == VsStateIcon.STATEICON_CHECKEDIN && glyphs[1] == VsStateIcon.STATEICON_CHECKEDOUT,
+                                "package exposes the same standard glyphs as the registered service");
+                        }
+                        finally
+                        {
+                            serviceField.SetValue(package, null);
+                        }
+                    }
 
                     using (var window = new ChangesToolWindow())
                     {
@@ -157,6 +211,14 @@ internal static class StatusTests
                         Check(window.Caption == "HgInlineDiff: Changes" && grid.Columns.Count == 3
                             && grid.Columns[2].Visibility == Visibility.Visible, "window caption and repository column");
                         var rows = grid.Items.Cast<MercurialFileChange>().ToArray();
+                        var refresh = ((DockPanel)window.Content).Children.OfType<Button>().Single();
+                        refresh.Measure(new Size(500, 100));
+                        Check(refresh.DesiredSize.Width <= 40, "compact refresh button overrides themed minimum width");
+                        grid.Measure(new Size(500, 300));
+                        grid.Arrange(new Rect(0, 0, 500, 300));
+                        grid.UpdateLayout();
+                        Check(grid.Columns[0].GetCellContent(rows[0]) is TextBlock cellText && cellText.Margin == new Thickness(3),
+                            "table text has spacing on every side");
                         Check(rows.Select(row => row.Path).SequenceEqual(rows.Select(row => row.Path).OrderBy(path => path, StringComparer.OrdinalIgnoreCase)), "path sorting");
                         grid.SelectedItem = rows.First(row => row.Path == "outside.txt");
                         update.Invoke(window, null);
@@ -164,7 +226,7 @@ internal static class StatusTests
 
                         File.WriteAllText(Path.Combine(root, "src/clean.txt"), "saved\n");
                         provider.GetSccGlyph(1, paths, glyphs, flags);
-                        Check((int)glyphs[0] == 40, "glyph requests use cached disk status without running a refresh");
+                        Check(glyphs[0] == VsStateIcon.STATEICON_CHECKEDIN, "glyph requests use cached disk status without running a refresh");
                         PumpUntil(() => monitor.GetStatus(Path.Combine(root, "src/clean.txt")) == 'M');
                         Check(true, "file watcher refreshes without a manual command");
                         File.WriteAllText(Path.Combine(root, "outside.txt"), "original\n");
@@ -192,6 +254,18 @@ internal static class StatusTests
                         update.Invoke(window, null);
                         Check(monitor.Error.Length == 0 && monitor.Repositories.Count == 1
                             && grid.Columns[2].Visibility == Visibility.Collapsed, "rediscover repositories and recover from an error");
+                        gitOnly = true;
+                        currentSolution = Path.Combine(gitRoot, "git.slnx");
+                        monitor.RequestRefresh(true);
+                        tasks.Run(monitor.RefreshAsync);
+                        Check(monitor.IsGitSolution && monitor.Repositories.Count == 0 && selectedProvider == gitProvider,
+                            "switch from a Mercurial solution to Git without retaining the Mercurial provider");
+                        monitor.OnAfterCloseSolution(null!);
+                        selectedProvider = new Guid(MercurialStatusService.ProviderGuid);
+                        provider.SetActive();
+                        monitor.RequestRefresh(true);
+                        tasks.Run(monitor.RefreshAsync);
+                        Check(selectedProvider == gitProvider, "restore Git when VS reopens a Git solution with a persisted Mercurial provider");
                         monitor.RequestRefresh();
                         var pending = tasks.RunAsync(monitor.RefreshAsync);
                         monitor.OnAfterCloseSolution(null!);
@@ -210,6 +284,17 @@ internal static class StatusTests
             catch (InvalidOperationException) { Check(true, "reject paths outside repository"); }
             var clean = MercurialStatus.Parse(root, Encoding.UTF8.GetBytes("C src/clean.txt\0"));
             Check(clean.GetStatus(Path.Combine(root, "src")) == 'C' && clean.Changes.Count == 0, "clean folder aggregation");
+            var nestedGit = Path.Combine(root, "nested-git");
+            Directory.CreateDirectory(Path.Combine(nestedGit, ".git"));
+            Check(MercurialRepository.FindRoot(Path.Combine(nestedGit, "file.cs")) == null
+                && MercurialRepository.FindRoot(Path.Combine(nestedGit, "file.cs"), ".git") == nestedGit,
+                "a nested Git repository hides the parent Mercurial repository");
+            var gitWorktree = Path.Combine(root, "git-worktree");
+            Directory.CreateDirectory(gitWorktree);
+            File.WriteAllText(Path.Combine(gitWorktree, ".git"), "gitdir: ../nested-git/.git/worktrees/test\n");
+            Check(MercurialRepository.FindRoot(Path.Combine(gitWorktree, "file.cs")) == null
+                && MercurialRepository.FindRoot(Path.Combine(gitWorktree, "file.cs"), ".git") == gitWorktree,
+                "recognize a Git worktree marker file as a repository boundary");
         }
         finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
         Console.WriteLine("Status fixture: " + root);

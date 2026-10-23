@@ -4,10 +4,15 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Automation;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Imaging;
+using Microsoft.VisualStudio.Imaging.Interop;
+using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -26,9 +31,22 @@ public sealed class ChangesToolWindow : ToolWindowPane
     public ChangesToolWindow() : base(null)
     {
         Caption = "HgInlineDiff: Changes";
+        BitmapImageMoniker = new ImageMoniker { Guid = new Guid(HgInlineDiffPackage.ImageCatalogGuid), Id = 1 };
         var panel = new DockPanel();
         panel.SetResourceReference(Control.BackgroundProperty, VsBrushes.ToolWindowBackgroundKey);
-        var refresh = new Button { Content = "Refresh", Margin = new Thickness(4), HorizontalAlignment = HorizontalAlignment.Left };
+        var refresh = new Button
+        {
+            Content = new CrispImage { Moniker = KnownMonikers.Refresh, Width = 16, Height = 16 },
+            ToolTip = "Refresh Mercurial Changes",
+            Margin = new Thickness(2),
+            Padding = new Thickness(3),
+            Width = 36,
+            MinWidth = 0,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        AutomationProperties.SetName(refresh, "Refresh Mercurial Changes");
+        refresh.SetResourceReference(FrameworkElement.StyleProperty, VsResourceKeys.ButtonStyleKey);
+        refresh.SetResourceReference(ImageThemingUtilities.ImageBackgroundColorProperty, EnvironmentColors.ToolWindowBackgroundColorKey);
         refresh.Click += (sender, args) =>
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -58,9 +76,31 @@ public sealed class ChangesToolWindow : ToolWindowPane
         };
         _files.SetResourceReference(Control.BackgroundProperty, VsBrushes.ToolWindowBackgroundKey);
         _files.SetResourceReference(Control.ForegroundProperty, VsBrushes.ToolWindowTextKey);
-        _files.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = 55 });
-        _files.Columns.Add(new DataGridTextColumn { Header = "Path", Binding = new Binding("Path"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        _repositoryColumn = new DataGridTextColumn { Header = "Repository", Binding = new Binding("Repository"), Width = DataGridLength.SizeToCells };
+        var headerStyle = new Style(typeof(DataGridColumnHeader));
+        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension(EnvironmentColors.ToolWindowBackgroundBrushKey)));
+        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, new DynamicResourceExtension(EnvironmentColors.ToolWindowTextBrushKey)));
+        headerStyle.Setters.Add(new Setter(Control.BorderBrushProperty, new DynamicResourceExtension(EnvironmentColors.ToolWindowBorderBrushKey)));
+        headerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0, 0, 0, 1)));
+        headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(5, 3, 5, 3)));
+        _files.ColumnHeaderStyle = headerStyle;
+        var cellStyle = new Style(typeof(DataGridCell));
+        cellStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
+        var selected = new Trigger { Property = DataGridCell.IsSelectedProperty, Value = true };
+        selected.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension(TreeViewColors.SelectedItemInactiveBrushKey)));
+        selected.Setters.Add(new Setter(Control.ForegroundProperty, new DynamicResourceExtension(TreeViewColors.SelectedItemInactiveTextBrushKey)));
+        cellStyle.Triggers.Add(selected);
+        _files.CellStyle = cellStyle;
+        var rowStyle = new Style(typeof(DataGridRow));
+        var selectedRow = new Trigger { Property = DataGridRow.IsSelectedProperty, Value = true };
+        selectedRow.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension(TreeViewColors.SelectedItemInactiveBrushKey)));
+        selectedRow.Setters.Add(new Setter(Control.ForegroundProperty, new DynamicResourceExtension(TreeViewColors.SelectedItemInactiveTextBrushKey)));
+        rowStyle.Triggers.Add(selectedRow);
+        _files.RowStyle = rowStyle;
+        var textStyle = new Style(typeof(TextBlock));
+        textStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(3)));
+        _files.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = 55, ElementStyle = textStyle });
+        _files.Columns.Add(new DataGridTextColumn { Header = "Path", Binding = new Binding("Path"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), ElementStyle = textStyle });
+        _repositoryColumn = new DataGridTextColumn { Header = "Repository", Binding = new Binding("Repository"), Width = DataGridLength.SizeToCells, ElementStyle = textStyle };
         _files.Columns.Add(_repositoryColumn);
         _files.PreviewMouseLeftButtonDown += (sender, args) => _pinOnRelease = args.ClickCount >= 2;
         _files.PreviewMouseLeftButtonUp += OnFileClick;

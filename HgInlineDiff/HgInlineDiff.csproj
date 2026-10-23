@@ -6,7 +6,7 @@
     <LangVersion>14</LangVersion>
     <UseWPF>true</UseWPF>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Product>HgInlineDiff</Product>
     <Description>Mercurial editor markers, Solution Explorer status icons, and a changes window for Visual Studio.</Description>
 
@@ -15,6 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Images.imagemanifest">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <ProjectCapability Include="CreateVsixContainer" />
   </ItemGroup>
 
@@ -27,8 +30,6 @@
   <ItemGroup>
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Design" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Windows.Forms" />
     <VSCTCompile Include="Commands.vsct">
       <ResourceName>Menus.ctmenu</ResourceName>
     </VSCTCompile>
@@ -43,5 +44,8 @@
       <Link>assets\logo-90px.png</Link>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <Resource Include="..\assets\logo-90px.png">
+      <Link>assets\logo-90px.png</Link>
+    </Resource>
   </ItemGroup>
 </Project>

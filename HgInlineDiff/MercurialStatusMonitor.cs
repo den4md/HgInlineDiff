@@ -38,6 +38,8 @@ internal sealed class MercurialStatusMonitor : IDisposable, IVsSolutionEvents, I
 
     public IReadOnlyList<MercurialStatus> Repositories { get; private set; } = Array.Empty<MercurialStatus>();
     public string Error { get; private set; } = string.Empty;
+    public string SolutionFile { get; private set; } = string.Empty;
+    public bool IsGitSolution { get; private set; }
     public event EventHandler? Changed;
 
     public MercurialStatusMonitor(IVsSolution solution, IVsRunningDocumentTable documents, JoinableTaskFactory tasks)
@@ -112,9 +114,13 @@ internal sealed class MercurialStatusMonitor : IDisposable, IVsSolutionEvents, I
             if (Interlocked.Exchange(ref _discover, 0) != 0)
             {
                 var candidates = new List<string>();
+                var currentSolution = string.Empty;
                 if (ErrorHandler.Succeeded(_solution.GetSolutionInfo(out _, out var solutionFile, out _))
                     && !string.IsNullOrEmpty(solutionFile))
+                {
                     candidates.Add(solutionFile);
+                    currentSolution = solutionFile;
+                }
                 foreach (var project in Projects())
                 {
                     if (ErrorHandler.Succeeded(project.GetCanonicalName(VSConstants.VSITEMID_ROOT, out var path))
@@ -124,12 +130,17 @@ internal sealed class MercurialStatusMonitor : IDisposable, IVsSolutionEvents, I
                         (int)__VSHPROPID.VSHPROPID_ProjectDir, out var directory)) && directory is string folder)
                         candidates.Add(Path.Combine(folder, "__repository_probe__"));
                 }
-                var roots = await Task.Run(() => candidates.Select(MercurialRepository.FindRoot)
-                    .Where(root => root != null).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderByDescending(root => root.Length).ToArray(), request.Token);
+                var discovered = await Task.Run(() => (
+                    Roots: candidates.Select(MercurialRepository.FindRoot)
+                        .Where(root => root != null).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderByDescending(root => root.Length).ToArray(),
+                    Git: currentSolution.Length != 0 && MercurialRepository.FindRoot(currentSolution, ".git") != null), request.Token);
                 await _tasks.SwitchToMainThreadAsync(request.Token);
                 if (_disposed || generation != _generation)
                     return;
+                SolutionFile = currentSolution;
+                IsGitSolution = discovered.Git;
+                var roots = discovered.Roots;
                 if (!_roots.SequenceEqual(roots, StringComparer.OrdinalIgnoreCase)
                     || _watchers.Count != roots.Length || Interlocked.Exchange(ref _resetWatchers, 0) != 0)
                 {
@@ -249,6 +260,8 @@ internal sealed class MercurialStatusMonitor : IDisposable, IVsSolutionEvents, I
         _roots = Array.Empty<string>();
         ReplaceWatchers();
         Repositories = Array.Empty<MercurialStatus>();
+        SolutionFile = string.Empty;
+        IsGitSolution = false;
         Error = string.Empty;
         Changed?.Invoke(this, EventArgs.Empty);
     }

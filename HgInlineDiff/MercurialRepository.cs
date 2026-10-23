@@ -25,15 +25,19 @@ internal static class MercurialRepository
 {
     internal const int MaximumFileBytes = 4 * 1024 * 1024;
 
-    public static string? FindRoot(string filePath)
+    public static string? FindRoot(string filePath) => FindRoot(filePath, ".hg");
+
+    internal static string? FindRoot(string filePath, string metadataDirectory)
     {
         try
         {
             for (var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
                  directory != null; directory = Path.GetDirectoryName(directory))
             {
-                if (Directory.Exists(Path.Combine(directory, ".hg")))
-                    return directory;
+                var mercurial = Directory.Exists(Path.Combine(directory, ".hg"));
+                var git = Directory.Exists(Path.Combine(directory, ".git")) || File.Exists(Path.Combine(directory, ".git"));
+                if (mercurial || git)
+                    return (metadataDirectory == ".hg" ? mercurial : git) ? directory : null;
             }
         }
         catch (Exception error) when (error is ArgumentException || error is IOException

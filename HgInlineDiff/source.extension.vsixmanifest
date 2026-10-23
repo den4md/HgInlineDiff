@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.2.0" Language="en-US" Publisher="den4md" />
+    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.2.1" Language="en-US" Publisher="den4md" />
     <DisplayName>HgInlineDiff</DisplayName>
     <Description>Mercurial editor markers, Solution Explorer status icons, and a changes window for Visual Studio 2022 and 2026.</Description>
     <MoreInfo>https://github.com/den4md/HgInlineDiff</MoreInfo>
@@ -23,6 +23,7 @@
     <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0, )" DisplayName="Visual Studio core editor" />
   </Prerequisites>
   <Assets>
+    <Asset Type="Microsoft.VisualStudio.ImageManifest" Path="Images.imagemanifest" />
     <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
   </Assets>

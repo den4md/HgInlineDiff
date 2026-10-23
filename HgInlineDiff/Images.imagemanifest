@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
+  <Symbols>
+    <Guid Name="HgInlineDiffImages" Value="{378105bb-1d68-486b-815c-4a938f595a70}" />
+    <ID Name="ProjectLogo" Value="1" />
+  </Symbols>
+  <Images>
+    <Image Guid="$(HgInlineDiffImages)" ID="$(ProjectLogo)" AllowColorInversion="false">
+      <Source Uri="/HgInlineDiff;Component/assets/logo-90px.png" />
+    </Image>
+  </Images>
+</ImageManifest>
