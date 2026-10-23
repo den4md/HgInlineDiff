@@ -6,7 +6,7 @@
     <LangVersion>14</LangVersion>
     <UseWPF>true</UseWPF>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Product>HgInlineDiff</Product>
     <Description>Mercurial editor markers, Solution Explorer status icons, and a changes window for Visual Studio.</Description>
 

@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.2.1" Language="en-US" Publisher="den4md" />
+    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.2.2" Language="en-US" Publisher="den4md" />
     <DisplayName>HgInlineDiff</DisplayName>
-    <Description>Mercurial editor markers, Solution Explorer status icons, and a changes window for Visual Studio 2022 and 2026.</Description>
+    <Description>Mercurial support for Visual Studio 2022 and 2026.
+
+Editor markers: green for added lines, blue for modified lines, red for deleted lines. Includes unsaved edits; compares with the working copy's first parent. Click a marker to preview old text, Ctrl+C to copy, Escape to close. Colors: Fonts and Colors &gt; Mercurial added/modified/deleted lines.
+
+Solution Explorer: standard VS icons show clean, changed, and untracked files and folders. Hover for the exact status. Git solutions keep Git; manual provider choices last until the solution changes.
+
+Changes: View &gt; Other Windows &gt; HgInlineDiff: Changes lists modified, added, removed, missing, and untracked files, sorted by path. Covers repositories containing the solution or its projects, including binary and non-project files. Ignored files are excluded. Click to preview; double-click or Enter to keep open. Files absent from disk do not open. Statuses reflect saved files and refresh after saves, filesystem changes, and returning to VS.</Description>
     <MoreInfo>https://github.com/den4md/HgInlineDiff</MoreInfo>
     <License>LICENSE.txt</License>
     <ReleaseNotes>https://github.com/den4md/HgInlineDiff/releases</ReleaseNotes>
