@@ -25,6 +25,7 @@ internal static class SmokeTests
             _hg = args[1];
             AppDomain.CurrentDomain.AssemblyResolve += ResolveVisualStudioAssembly;
             InitializeShellThread();
+            _checks += StatusTests.Run(args[2], Hg);
             _checks += MarginUiTests.Run();
             RunAsync(args[2]).GetAwaiter().GetResult();
             Console.WriteLine("Passed " + _checks + " checks with " + Path.GetFileName(_visualStudio) + " editor assemblies.");

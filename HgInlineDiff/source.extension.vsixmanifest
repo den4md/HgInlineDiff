@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.1.6" Language="en-US" Publisher="den4md" />
+    <Identity Id="HgVS_2026.ac2db762-253c-4a2b-b8ec-687faa490947" Version="0.2.0" Language="en-US" Publisher="den4md" />
     <DisplayName>HgInlineDiff</DisplayName>
-    <Description>Mercurial change markers and parent-text previews in the Visual Studio 2022 and 2026 editor.</Description>
+    <Description>Mercurial editor markers, Solution Explorer status icons, and a changes window for Visual Studio 2022 and 2026.</Description>
     <MoreInfo>https://github.com/den4md/HgInlineDiff</MoreInfo>
     <License>LICENSE.txt</License>
     <ReleaseNotes>https://github.com/den4md/HgInlineDiff/releases</ReleaseNotes>

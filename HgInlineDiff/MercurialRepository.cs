@@ -99,7 +99,16 @@ internal static class MercurialRepository
         return "\"" + value + "\"";
     }
 
-    private static async Task<byte[]> RunAsync(string root, string arguments, CancellationToken cancellationToken)
+    internal static async Task<MercurialStatus> LoadStatusAsync(string root, CancellationToken cancellationToken)
+    {
+        var bytes = await RunAsync(root,
+            "status --modified --added --removed --deleted --unknown --clean --print0",
+            cancellationToken, 64 * 1024 * 1024).ConfigureAwait(false);
+        return MercurialStatus.Parse(root, bytes);
+    }
+
+    private static async Task<byte[]> RunAsync(string root, string arguments, CancellationToken cancellationToken,
+        int maximumBytes = MaximumFileBytes)
     {
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         using (var process = new Process())
@@ -138,8 +147,10 @@ internal static class MercurialRepository
                     int count;
                     while ((count = await process.StandardOutput.BaseStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false)) != 0)
                     {
-                        if (output.Length + count > MaximumFileBytes)
-                            throw new InvalidOperationException("Mercurial margin supports files up to 4 MiB.");
+                        if (output.Length + count > maximumBytes)
+                            throw new InvalidOperationException(maximumBytes == MaximumFileBytes
+                                ? "Mercurial margin supports files up to 4 MiB."
+                                : "Mercurial status output exceeds 64 MiB.");
                         await output.WriteAsync(buffer, 0, count, token).ConfigureAwait(false);
                     }
                     await Task.Run(() => process.WaitForExit(), token).ConfigureAwait(false);

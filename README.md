@@ -2,7 +2,7 @@
 
 <img src="assets/logo.svg" width="96" height="96" alt="HgInlineDiff logo">
 
-Mercurial change markers and parent-text previews in the Visual Studio editor.
+Mercurial editor change markers, Solution Explorer status icons, and a changes window.
 For Visual Studio 2022 and 2026 on Windows x64.
 
 [Download the VSIX](https://github.com/den4md/HgInlineDiff/releases/latest) · [Report an issue](https://github.com/den4md/HgInlineDiff/issues) · [MIT license](LICENSE.txt)
@@ -16,10 +16,10 @@ For Visual Studio 2022 and 2026 on Windows x64.
 3. Close all Visual Studio instances. Download `HgInlineDiff.vsix` from
    [GitHub Releases](https://github.com/den4md/HgInlineDiff/releases/latest), open it, and select the installed Visual Studio versions.
 4. Start Visual Studio and open a tracked text file in a Mercurial working copy.
-   No Source Control provider selection is needed.
+   HgInlineDiff activates its Source Control provider automatically for Mercurial solutions.
 
 HgInlineDiff keeps the extension ID used by earlier development builds named HgVS Mercurial Margin.
-Version 0.1.6 updates version 0.1.5 in place. Do not install both packages as separate extensions.
+Version 0.2.0 updates earlier versions in place. Do not install both packages as separate extensions.
 
 ## Use
 
@@ -37,6 +37,29 @@ After an external commit, update, revert, add, or rename, use **Tools > Refresh 
 The same command is available by right-clicking the Mercurial margin.
 It refreshes all open Mercurial margins, without saving or changing any files.
 Assign a shortcut under Tools > Options > Environment > Keyboard using `HgInlineDiff.RefreshMercurialChanges`.
+
+### Solution Explorer and changes window
+
+Solution Explorer shows a green dot for clean files and folders, a red dot for modified files and folders,
+and `+`, `×`, `!`, or `?` for added, removed, missing, or untracked files. A folder becomes modified when
+any file below it changes, including files outside the project. Ignored files have no status icon.
+HgInlineDiff takes priority as the Source Control provider when a Mercurial solution is detected.
+Remove VisualHgMod2 if it is installed to avoid competing automatic provider selection.
+
+Open **View > Other Windows > HgInlineDiff: Changes** for a list of changed files throughout each
+repository containing the solution or one of its loaded projects. The list includes modified, added,
+removed, missing, and untracked files, including binary files and files outside the solution.
+It is sorted by repository-relative path and shows only Status and Path, plus Repository when more
+than one repository is present. Renames appear as removed and added paths; copies appear as additions.
+
+Click a row to open a preview tab. Double-click or press Enter to keep the tab open.
+Missing files do not open. The window has no filter, checkboxes, or repository editing commands.
+Its Refresh button also refreshes the existing editor margins.
+
+Statuses describe saved files on disk. They refresh in the background after saves and filesystem events,
+with a 500 ms debounce, and when Visual Studio regains focus. Unsaved text continues to appear in the
+editor's line markers. A failed refresh preserves previous results and displays an error in the window.
+Source Control icon requests read the cache without running Mercurial on the UI thread.
 
 The baseline is the working copy's first parent, not the repository's newest changeset.
 Added tracked files are compared with empty text. Untracked, ignored, and binary files are skipped.
@@ -91,6 +114,12 @@ imported types, parameters, and locals declared outside the fragment, and check 
 and preview-workspace disposal. Popup checks verify that only the hunk is exposed, including CRLF parent files,
 repeated fragments, and deletions; addition messages remain unchanged.
 Queue checks cover debounce, background snapshot reads, cancellation, and serialization of a slow differencing engine.
+Status checks use temporary Mercurial repositories and real WPF controls with substituted shell interfaces.
+They cover all five change statuses, binary and non-project files, ignored files, renames, copies,
+recursive folder aggregation, multiple repositories, batched glyph requests, 64-bit image list handles,
+path sorting, selection preservation, filesystem/save/activation refresh, recovery after failure,
+cancellation on solution close, and shell event unsubscription.
 Placement, language coloring, and interaction with CodeLens still require a manual check inside Visual Studio.
+Solution Explorer glyph placement and preview-tab interaction also require an in-IDE check.
 
 The editor integration is adapted from Git Diff Margin. See THIRD-PARTY-NOTICES.md and LICENSE.txt.

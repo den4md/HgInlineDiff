@@ -21,6 +21,8 @@ $shellRefs = @(
     "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.shell.framework/17.14.40264/lib/net472/Microsoft.VisualStudio.Shell.Framework.dll",
     "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.shell.15.0/17.14.40264/lib/net472/Microsoft.VisualStudio.Shell.15.0.dll"
     "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.threading.only/17.14.15/lib/net472/Microsoft.VisualStudio.Threading.dll"
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.componentmodelhost/17.14.106/lib/net472/Microsoft.VisualStudio.ComponentModelHost.dll"
+    "$env:USERPROFILE/.nuget/packages/microsoft.visualstudio.utilities/17.14.40264/lib/net472/Microsoft.VisualStudio.Utilities.dll"
 ) | ForEach-Object { "/reference:$_" }
 & $compiler /nologo /target:exe /langversion:latest /nullable:enable "/out:$testExecutable" `
     $shellRefs `
@@ -40,6 +42,13 @@ $shellRefs = @(
     "/reference:$(Join-Path $framework 'PresentationCore.dll')" `
     "/reference:$(Join-Path $framework 'PresentationFramework.dll')" `
     "/reference:$(Join-Path $framework 'System.Xaml.dll')" `
+    "/reference:$(Join-Path $framework 'System.Drawing.dll')" `
+    "/reference:$(Join-Path $framework 'System.Windows.Forms.dll')" `
+    (Join-Path $projectRoot 'HgInlineDiff\HgInlineDiffPackage.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\ChangesToolWindow.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialStatus.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialStatusMonitor.cs') `
+    (Join-Path $projectRoot 'HgInlineDiff\MercurialStatusService.cs') `
     (Join-Path $projectRoot 'HgInlineDiff\MercurialRepository.cs') `
     (Join-Path $projectRoot 'HgInlineDiff\LineDiff.cs') `
     (Join-Path $projectRoot 'HgInlineDiff\DiffUpdates.cs') `
@@ -53,6 +62,7 @@ $shellRefs = @(
     (Join-Path $PSScriptRoot 'PopupHighlightingTests.cs') `
     (Join-Path $PSScriptRoot 'MarginUiTests.cs') `
     (Join-Path $PSScriptRoot 'DiffUpdateTests.cs') `
+    (Join-Path $PSScriptRoot 'StatusTests.cs') `
     (Join-Path $PSScriptRoot 'SmokeTests.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Smoke-test compilation failed.' }
 & $testExecutable $VisualStudioPath $MercurialPath $testWork

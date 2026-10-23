@@ -16,6 +16,13 @@
           <CommandName>HgInlineDiff.RefreshMercurialChanges</CommandName>
         </Strings>
       </Button>
+      <Button guid="guidHgInlineDiffCommands" id="ShowChanges" priority="0x0100" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Strings>
+          <ButtonText>HgInlineDiff: Changes</ButtonText>
+          <CommandName>HgInlineDiff.ShowChanges</CommandName>
+        </Strings>
+      </Button>
     </Buttons>
   </Commands>
   <Symbols>
@@ -23,6 +30,7 @@
     <GuidSymbol name="guidHgInlineDiffCommands" value="{b247faed-0622-43ee-9a24-a9636a89760f}">
       <IDSymbol name="HgInlineDiffGroup" value="0x1020" />
       <IDSymbol name="RefreshChanges" value="0x0100" />
+      <IDSymbol name="ShowChanges" value="0x0101" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

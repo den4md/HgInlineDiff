@@ -367,7 +367,8 @@ internal static class MarginUiTests
         public static T Create(Func<IMethodCallMessage, object?> call) => (T)new InterfaceProxy<T>(call).GetTransparentProxy();
         public override IMessage Invoke(IMessage message)
         {
-            var call = (IMethodCallMessage)message;
+            // Runtime messages recreate Args on each read; MethodCall retains edits to out parameters.
+            var call = new MethodCall(message);
             try { return new ReturnMessage(_call(call), call.Args, call.ArgCount, call.LogicalCallContext, call); }
             catch (Exception error) { return new ReturnMessage(error, call); }
         }
